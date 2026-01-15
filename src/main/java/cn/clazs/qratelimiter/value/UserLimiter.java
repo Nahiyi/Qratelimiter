@@ -1,4 +1,4 @@
-package cn.clazs.qratelimiter;
+package cn.clazs.qratelimiter.value;
 
 import cn.clazs.qratelimiter.util.TimestampUtil;
 import lombok.Getter;

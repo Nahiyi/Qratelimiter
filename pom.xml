@@ -18,6 +18,7 @@
     <junit.version>5.11.0</junit.version>
     <lombok.version>1.18.34</lombok.version>
     <spring-boot.version>2.7.18</spring-boot.version>
+    <caffeine.version>2.9.3</caffeine.version>
   </properties>
 
   <dependencies>
@@ -35,6 +36,13 @@
       <artifactId>spring-boot-starter</artifactId>
       <version>${spring-boot.version}</version>
       <optional>true</optional>
+    </dependency>
+
+    <!-- Caffeine 高性能缓存库 -->
+    <dependency>
+      <groupId>com.github.ben-manes.caffeine</groupId>
+      <artifactId>caffeine</artifactId>
+      <version>${caffeine.version}</version>
     </dependency>
 
     <!-- Lombok -->
