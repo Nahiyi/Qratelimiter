@@ -2,24 +2,28 @@ package cn.clazs.qratelimiter;
 
 import lombok.Getter;
 
+import java.util.concurrent.locks.ReentrantLock;
+
 /**
- * 基于环形数组的高性能、轻量级限流器
+ * 基于环形数组的高性能、线程安全限流器
  * 使用二分查找在O(log n)时间内判断是否允许访问
  *
  * <p>限流算法类型：滑动窗口时间算法
  * <p>时间复杂度：O(log n) - 使用二分查找统计窗口内记录数
  * <p>空间复杂度：O(capacity) - 固定大小的环形数组
+ * <p>线程安全：使用ReentrantLock保证同一用户并发请求的顺序执行
  *
  * @author clazs
  * @since 1.0
  */
 public class UserLimiter {
-    /** 访问记录数组（环形缓冲区） */
-    private final AccessRecord[] records;
+    /** 时间戳数组（环形缓冲区） */
+    private final long[] timestamps;
 
-    /** interval时间间隔内，最大允许freq次访问 */
+    /** 时间窗口内最大允许访问次数 */
     @Getter
     private final int freq;
+
     /** 时间窗口长度（单位：毫秒） */
     @Getter
     private final long interval;
@@ -27,15 +31,25 @@ public class UserLimiter {
     /** 当前有效元素数量 */
     @Getter
     private int size;
+
     /** 数组总容量 */
     @Getter
     private final int capacity;
 
     /** 指向最旧的元素（逻辑索引0） */
     private int head;
+
     /** 指向下一个写入位置 */
     private int tail;
 
+    /** 并发锁：保证同一用户并发请求的顺序执行 */
+    private final ReentrantLock lock = new ReentrantLock();
+
+    /**
+     * @param capacity 数组容量（必须 >= freq）
+     * @param freq 时间窗口内最大访问次数
+     * @param interval 时间窗口长度（毫秒）
+     */
     public UserLimiter(int capacity, int freq, long interval) {
         // 参数合法性校验
         if (capacity <= 0) {
@@ -48,6 +62,7 @@ public class UserLimiter {
             throw new IllegalArgumentException("Interval must be positive, got: " + interval);
         }
 
+        // 约束：capacity 必须 >= freq
         if (capacity < freq) {
             throw new IllegalArgumentException(
                     "Capacity must be >= frequency for correct rate limiting. " +
@@ -57,7 +72,7 @@ public class UserLimiter {
             );
         }
 
-        this.records = new AccessRecord[capacity];
+        this.timestamps = new long[capacity];
         this.freq = freq;
         this.interval = interval;
         this.capacity = capacity;
@@ -71,25 +86,31 @@ public class UserLimiter {
     }
 
     /**
-     * 核心方法：判断是否允许访问
-     * @param record 访问记录
+     * 核心方法：判断是否允许访问（线程安全）
+     *
+     * <p>使用ReentrantLock保证同一用户的并发请求顺序执行，避免竞态条件导致限流失效
+     *
+     * @param currentTime 当前时间戳（毫秒）
      * @return true表示允许，false表示被限流
      */
-    public boolean allowRequest(AccessRecord record) {
-        long currentTime = record.getTimestamp();
+    public boolean allowRequest(long currentTime) {
+        lock.lock();
+        try {
+            // 统计时间窗口内的访问次数
+            long windowStart = currentTime - interval;
+            int countInWindow = countRecordsInWindow(windowStart);
 
-        // 统计时间窗口内的访问次数（无论数组是否已满）
-        long windowStart = currentTime - interval;
-        int countInWindow = countRecordsInWindow(windowStart);
+            // 如果超过频率限制，拒绝请求
+            if (countInWindow >= freq) {
+                return false;
+            }
 
-        // 如果超过频率限制，拒绝请求
-        if (countInWindow >= freq) {
-            return false;
+            // 允许请求，添加时间戳
+            addTimestamp(currentTime);
+            return true;
+        } finally {
+            lock.unlock();
         }
-
-        // 允许请求，添加记录
-        addRecord(record);
-        return true;
     }
 
     /**
@@ -115,7 +136,9 @@ public class UserLimiter {
     }
 
     /**
-     * 二分找到逻辑索引中第一个时间戳 >= target 的位置(视角为逻辑连续数组)
+     * 二分找到逻辑索引中第一个时间戳 >= target 的位置
+     * 基于逻辑连续数组的视角进行二分查找
+     *
      * @param target 目标时间戳
      * @return 逻辑索引，如果不存在返回-1
      */
@@ -124,8 +147,7 @@ public class UserLimiter {
 
         while (l <= r) {
             int mid = l + ((r - l) >> 1);
-            AccessRecord midRecord = getLogical(mid);
-            long midTime = midRecord.getTimestamp();
+            long midTime = getLogical(mid);
 
             if (midTime < target) {
                 l = mid + 1;
@@ -142,11 +164,11 @@ public class UserLimiter {
     }
 
     /**
-     * 添加记录到环形数组
-     * @param record 访问记录
+     * 添加时间戳到环形数组
+     * @param timestamp 时间戳
      */
-    private void addRecord(AccessRecord record) {
-        records[tail] = record;
+    private void addTimestamp(long timestamp) {
+        timestamps[tail] = timestamp;
 
         if (size < capacity) {
             // 数组未满，size增加
@@ -161,48 +183,80 @@ public class UserLimiter {
     }
 
     /**
-     * 获取逻辑索引对应的记录
+     * 获取逻辑索引对应的时间戳
+     *
+     * <p>此处也可以不进行getLogical方法的封装，可参考：
+     *    <ul>
+     *        <li>力扣153. 寻找旋转排序数组中的最小值</li>
+     *        <li>力扣33. 搜索旋转排序数组</li>
+     *    </ul>
+     *    直接实现：在两段有序数组中的查找的算法求得最小值，然后继续二分即可
+     *
+     * <p>此处保障可读性与封装性，单独封装方法
+     *
      * @param logicalIndex 逻辑索引（0=最旧，size-1=最新）
-     * @return 对应的访问记录
+     * @return 对应的时间戳
      */
-    private AccessRecord getLogical(int logicalIndex) {
+    private long getLogical(int logicalIndex) {
         if (logicalIndex < 0 || logicalIndex >= size) {
-            throw new IndexOutOfBoundsException(
-                    "Index: " + logicalIndex + ", Size: " + size
-            );
+            throw new IndexOutOfBoundsException("Index: " + logicalIndex + ", Size: " + size);
         }
         // 逻辑索引转物理索引
         int physicalIndex = (head + logicalIndex) % capacity;
-        return records[physicalIndex];
+        return timestamps[physicalIndex];
     }
 
+    /**
+     * 判断数组是否已满
+     * @return true表示已满
+     */
     public boolean isFull() {
         return size == capacity;
     }
 
+    /**
+     * 判断数组是否为空
+     * @return true表示为空
+     */
     public boolean isEmpty() {
         return size == 0;
     }
 
     /**
      * 获取最早的记录时间戳
-     * @return 最旧记录的时间戳，如果数组为空返回null
+     * @return 最旧记录的时间戳，如果数组为空返回0
      */
-    public Long getOldestTimestamp() {
+    public long getOldestTimestamp() {
         if (isEmpty()) {
-            return null;
+            return 0;
         }
-        return getLogical(0).getTimestamp();
+        return getLogical(0);
     }
 
     /**
      * 获取最新的记录时间戳
-     * @return 最新记录的时间戳，如果数组为空返回null
+     * @return 最新记录的时间戳，如果数组为空返回0
      */
-    public Long getLatestTimestamp() {
+    public long getLatestTimestamp() {
         if (isEmpty()) {
-            return null;
+            return 0;
         }
-        return getLogical(size - 1).getTimestamp();
+        return getLogical(size - 1);
+    }
+
+    /**
+     * 获取当前锁状态
+     * @return true表示锁被持有
+     */
+    public boolean isLocked() {
+        return lock.isLocked();
+    }
+
+    /**
+     * 获取等待队列长度
+     * @return 等待获取锁的线程数
+     */
+    public int getQueueLength() {
+        return lock.getQueueLength();
     }
 }
