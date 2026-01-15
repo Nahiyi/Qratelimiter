@@ -17,9 +17,26 @@
     <java.version>1.8</java.version>
     <junit.version>5.11.0</junit.version>
     <lombok.version>1.18.34</lombok.version>
+    <spring-boot.version>2.7.18</spring-boot.version>
   </properties>
 
   <dependencies>
+    <!-- Spring Boot Configuration Processor (用于生成配置元数据) -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-configuration-processor</artifactId>
+      <version>${spring-boot.version}</version>
+      <optional>true</optional>
+    </dependency>
+
+    <!-- Spring Boot Starter (可选，用于测试和自动配置支持) -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter</artifactId>
+      <version>${spring-boot.version}</version>
+      <optional>true</optional>
+    </dependency>
+
     <!-- Lombok -->
     <dependency>
       <groupId>org.projectlombok</groupId>

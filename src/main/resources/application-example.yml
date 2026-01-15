@@ -1,0 +1,83 @@
+clazs:
+  ratelimiter:
+    # 是否启用限流器（默认：true）
+    enabled: true
+
+    # 时间窗口内最大允许访问次数（默认：100）
+    # 示例：100 表示在指定时间窗口内最多允许 100 次请求
+    freq: 100
+
+    # 时间窗口长度，单位：毫秒（默认：60000ms = 1分钟）
+    # 示例：60000 表示 60 秒的时间窗口
+    interval: 60000
+
+    # 数组容量（默认：150）
+    # 注意：必须满足 capacity >= freq，否则会抛出异常！
+    # 建议：capacity = freq * 1.5
+    # 示例：freq=100, capacity=150 可以提供足够的缓冲空间
+    capacity: 150
+
+    # 缓存过期时间，单位：分钟（默认：一天）
+    # 用户在指定时间内没有访问后，其限流器实例会自动从内存中清除
+    # 可以防止内存泄漏，释放不再使用的用户限流器
+    # ps.注意过期时间和限流器间隔的影响
+    cache-expire-after-access-minutes: 1440
+
+    # 缓存最大用户数（默认：10000）
+    # 防止恶意攻击导致内存溢出
+    # 当缓存中的用户数达到此值时，最少使用的用户限流器会被自动清除
+    cache-maximum-size: 10000
+
+
+# ==================== 常用配置场景 ====================
+
+# 场景1：高频API（秒级限流）
+# clazs:
+#   ratelimiter:
+#     enabled: true
+#     freq: 10           # 1秒内最多10次请求
+#     interval: 1000     # 1秒时间窗口
+#     capacity: 20       # freq * 2
+
+# 场景2：中频API（分钟级限流）
+# clazs:
+#   ratelimiter:
+#     enabled: true
+#     freq: 100          # 1分钟内最多100次请求
+#     interval: 60000    # 1分钟时间窗口
+#     capacity: 150      # freq * 1.5
+
+# 场景3：低频API（小时级限流）
+# clazs:
+#   ratelimiter:
+#     enabled: true
+#     freq: 1000         # 1小时内最多1000次请求
+#     interval: 3600000  # 1小时时间窗口
+#     capacity: 1000     # freq = capacity（最小配置）
+
+# 场景4：短信发送限流（1小时5条）
+# clazs:
+#   ratelimiter:
+#     enabled: true
+#     freq: 5            # 1小时内最多5条短信
+#     interval: 3600000  # 1小时时间窗口
+#     capacity: 10       # freq * 2
+
+# ==================== 注意事项 ====================
+#
+# 1. capacity 必须 >= freq
+#    如果 capacity < freq，限流器会抛出异常，无法正常工作！
+#
+# 2. 合理设置 capacity 和 freq 的比例
+#    - 高频场景（秒级）：capacity = freq * 2
+#    - 中频场景（分钟级）：capacity = freq * 1.5
+#    - 低频场景（小时级）：capacity = freq
+#
+# 3. cache-expire-after-access-minutes 和 cache-maximum-size
+#    - 这两个参数用于控制内存使用
+#    - 如果用户量很大，建议减小 cache-expire-after-access-minutes
+#    - 如果内存有限，建议减小 cache-maximum-size
+#
+# 4. enabled = false 时
+#    - 所有请求都不会被限流
+#    - 适合在开发/测试环境中关闭限流
