@@ -115,6 +115,14 @@ public class UserLimiter {
 
     /**
      * 二分查找统计时间窗口内的记录数量
+     *
+     * <p>数学优化：利用 lowerBound 的返回值特性
+     * <ul>
+     * <li>lowerBound 返回范围：[0, size]</li>
+     * <li>如果所有记录都 < windowStart，返回 size，计算结果为 0</li>
+     * <li>否则返回第一个 >= windowStart 的位置，正确计算窗口内记录数</li>
+     * </ul>
+     *
      * @param windowStart 时间窗口起始时间戳
      * @return 窗口内的记录数量
      */
@@ -123,44 +131,47 @@ public class UserLimiter {
             return 0;
         }
 
-        // 使用二分查找找到第一个 >= windowStart 的记录
+        // lowerBound 直接返回 l (取值范围 [0, size])
         int firstIdx = lowerBound(windowStart);
 
-        if (firstIdx == -1) {
-            // 所有记录都在窗口之外
-            return 0;
-        }
-
-        // 返回从 firstIdx 到末尾的记录数量
+        // 如果 firstIdx == size，说明所有记录都在窗口外，结果为 0
+        // 则结果就是 size - firstIdx
         return size - firstIdx;
     }
 
     /**
-     * 二分找到逻辑索引中第一个时间戳 >= target 的位置
-     * 基于逻辑连续数组的视角进行二分查找
+     * 二分查找：找到逻辑索引中第一个时间戳 >= target 的位置
+     *
+     * <p>经典的 lowerBound 算法实现（红蓝染色法）：
+     * <ul>
+     *     <li>红色（< target）：l 左侧</li>
+     *     <li>蓝色（>= target）：r 右侧</li>
+     *     <li>最终 l 停留在第一个蓝色位置</li>
+     * </ul>
+     *
+     * <p>返回值特性：
+     * <ul>
+     *     <li>范围：[0, size]</li>
+     *     <li>如果所有元素都 < target，返回 size</li>
+     *     <li>如果所有元素都 >= target，返回 0</li>
+     * </ul>
      *
      * @param target 目标时间戳
-     * @return 逻辑索引，如果不存在返回-1
+     * @return 第一个 >= target 的位置，范围 [0, size]
      */
     private int lowerBound(long target) {
         int l = 0, r = size - 1;
 
         while (l <= r) {
-            int mid = l + ((r - l) >> 1);
-            long midTime = getLogical(mid);
-
-            if (midTime < target) {
+            int mid = l + ((r - l) >> 1); // 防溢出
+            if (getLogical(mid) < target)
                 l = mid + 1;
-            } else {
+            else
                 r = mid - 1;
-            }
         }
 
-        // l 是第一个 >= target 的位置
-        if (l < size) {
-            return l;
-        }
-        return -1;
+        // 直接返回 l 即可；另外， l 的取值范围是 [0, size]
+        return l;
     }
 
     /**
