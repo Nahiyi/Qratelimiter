@@ -1,5 +1,6 @@
 package cn.clazs.qratelimiter;
 
+import cn.clazs.qratelimiter.util.TimestampUtil;
 import lombok.Getter;
 
 import java.util.concurrent.locks.ReentrantLock;
@@ -86,16 +87,42 @@ public class UserLimiter {
     }
 
     /**
-     * 核心方法：判断是否允许访问（线程安全）
+     * 核心方法：判断是否允许访问（线程安全，自动获取时间）
+     * 使用ReentrantLock保证同一用户的并发请求顺序执行，避免竞态条件导致限流失效
      *
-     * <p>使用ReentrantLock保证同一用户的并发请求顺序执行，避免竞态条件导致限流失效
-     *
-     * @param currentTime 当前时间戳（毫秒）
      * @return true表示允许，false表示被限流
      */
+    public boolean allowRequest() {
+        return allowRequestInternal(System.currentTimeMillis());
+    }
+
+    /**
+     * 核心方法：判断是否允许访问（线程安全，手动指定时间）
+     *
+     * @param currentTime 当前时间戳（必须为毫秒级别）
+     * @return true表示允许，false表示被限流
+     * @throws IllegalArgumentException 如果时间戳不是毫秒级别
+     */
     public boolean allowRequest(long currentTime) {
+        // 使用工具类检查时间戳是否为毫秒级别
+        TimestampUtil.validateMillisecondTimestamp(currentTime);
+        return allowRequestInternal(currentTime);
+    }
+
+    /**
+     * 内部实现：限流逻辑核心
+     */
+    private boolean allowRequestInternal(long currentTime) {
         lock.lock();
         try {
+            if (size > 0) {
+                long lastTime = getLogical(size - 1);  // 获取最后一个时间戳
+                if (currentTime < lastTime) {
+                    // check: 发生时钟回拨或请求乱序，强制修正为最后一条记录的时间
+                    currentTime = lastTime;
+                }
+            }
+
             // 统计时间窗口内的访问次数
             long windowStart = currentTime - interval;
             int countInWindow = countRecordsInWindow(windowStart);
@@ -118,9 +145,9 @@ public class UserLimiter {
      *
      * <p>数学优化：利用 lowerBound 的返回值特性
      * <ul>
-     * <li>lowerBound 返回范围：[0, size]</li>
-     * <li>如果所有记录都 < windowStart，返回 size，计算结果为 0</li>
-     * <li>否则返回第一个 >= windowStart 的位置，正确计算窗口内记录数</li>
+     *     <li>lowerBound 返回范围：[0, size]</li>
+     *     <li>如果所有记录都 < windowStart，返回 size，计算结果为 0</li>
+     *     <li>否则返回第一个 >= windowStart 的位置，正确计算窗口内记录数</li>
      * </ul>
      *
      * @param windowStart 时间窗口起始时间戳

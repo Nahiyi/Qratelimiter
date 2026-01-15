@@ -125,13 +125,14 @@ class UserLimiterTest {
     @Test
     @DisplayName("时间戳顺序：记录应该按时间顺序存储")
     void testTimestampOrdering() {
-        long[] timestamps = {1000L, 1200L, 1400L};
+        long baseTime = System.currentTimeMillis();
+        long[] timestamps = {baseTime, baseTime + 200, baseTime + 400};
         for (long ts : timestamps) {
             limiter.allowRequest(ts);
         }
 
-        assertEquals(1000L, limiter.getOldestTimestamp());
-        assertEquals(1400L, limiter.getLatestTimestamp());
+        assertEquals(baseTime, limiter.getOldestTimestamp());
+        assertEquals(baseTime + 400, limiter.getLatestTimestamp());
     }
 
     @Test
@@ -160,6 +161,88 @@ class UserLimiterTest {
     }
 
     // ==================== 并发安全测试 ====================
+
+    @Test
+    @DisplayName("时间单调性：时钟回拨场景测试")
+    void testClockRollback() {
+        // 正常请求
+        assertTrue(limiter.allowRequest(baseTime));
+        assertTrue(limiter.allowRequest(baseTime + 100));
+        assertTrue(limiter.allowRequest(baseTime + 200));
+
+        // 模拟时钟回拨：发送一个更早的时间戳
+        // 时间戳会被修正为 baseTime+200，但此时窗口内已有3条记录，达到频率限制
+        assertFalse(limiter.allowRequest(baseTime + 50), "时钟回拨修正后仍应受频率限制");
+
+        // 验证：后续请求继续被限流
+        assertFalse(limiter.allowRequest(baseTime + 300), "应继续被限流拒绝");
+    }
+
+    @Test
+    @DisplayName("时间单调性：乱序到达场景测试")
+    void testOutOfOrderRequests() {
+        // 发送乱序的时间戳
+        long base = System.currentTimeMillis();
+        assertTrue(limiter.allowRequest(base));
+        assertTrue(limiter.allowRequest(base + 50));
+        assertTrue(limiter.allowRequest(base + 30));  // 乱序：在50和30之间
+        // 第4个请求会被修正，但窗口内已有3条记录，达到freq=3限制
+        assertFalse(limiter.allowRequest(base + 20), "乱序修正后应受频率限制");
+
+        // 验证：限流仍然生效
+        assertFalse(limiter.allowRequest(base + 20), "应该被限流拒绝");
+    }
+
+    @Test
+    @DisplayName("边界条件：相同时间戳不影响限流逻辑")
+    void testIdenticalTimestamps() {
+        // 测试：连续3个完全相同的时间戳
+        long timestamp = System.currentTimeMillis();
+        assertTrue(limiter.allowRequest(timestamp), "第1次应该允许");
+        assertTrue(limiter.allowRequest(timestamp), "第2次应该允许（相同时间戳）");
+        assertTrue(limiter.allowRequest(timestamp), "第3次应该允许（相同时间戳）");
+
+        // 第4次应该被拒绝（即使时间戳相同）
+        assertFalse(limiter.allowRequest(timestamp), "第4次应该被拒绝");
+
+        // 验证窗口内计数正确
+        assertEquals(3, limiter.getSize());
+    }
+
+    @Test
+    @DisplayName("参数校验：拒绝秒级时间戳")
+    void testRejectSecondLevelTimestamp() {
+        long secondTimestamp = 1768481693L;
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> limiter.allowRequest(secondTimestamp)
+        );
+
+        assertNotNull(ex);
+    }
+
+    @Test
+    @DisplayName("参数校验：接受毫秒级时间戳")
+    void testAcceptMillisecondTimestamp() {
+        // 毫秒级时间戳
+        long msTimestamp = System.currentTimeMillis();
+
+        // 应正常工作，不抛出异常
+        assertDoesNotThrow(() -> limiter.allowRequest(msTimestamp));
+    }
+
+    @Test
+    @DisplayName("API便捷：无参方法自动获取时间")
+    void testNoArgumentMethod() {
+        // 测试无参方法（常用）
+        assertTrue(limiter.allowRequest());
+        assertTrue(limiter.allowRequest());
+        assertTrue(limiter.allowRequest());
+
+        // 第4次应该被限流
+        assertFalse(limiter.allowRequest());
+    }
 
     @Test
     @DisplayName("并发安全：同一用户并发请求应该被顺序执行")
