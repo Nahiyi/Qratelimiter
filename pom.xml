@@ -38,6 +38,13 @@
       <optional>true</optional>
     </dependency>
 
+    <!-- Spring Boot AOP -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-aop</artifactId>
+      <version>${spring-boot.version}</version>
+    </dependency>
+
     <!-- Caffeine 高性能缓存库 -->
     <dependency>
       <groupId>com.github.ben-manes.caffeine</groupId>
