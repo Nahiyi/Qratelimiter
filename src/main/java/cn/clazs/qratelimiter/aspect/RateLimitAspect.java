@@ -17,7 +17,6 @@ import org.springframework.expression.Expression;
 import org.springframework.expression.ExpressionParser;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
-import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
 
@@ -28,6 +27,8 @@ import java.lang.reflect.Method;
  * <p>核心功能：
  * <ul>
  *     <li>解析 SpEL 表达式获取限流 Key</li>
+ *     <li>生成复合Key（全限定类名.方法名:业务Key）实现方法级别隔离</li>
+ *     <li>支持自定义限流配置（覆盖全局配置）</li>
  *     <li>从注册中心获取用户的限流器</li>
  *     <li>判断是否允许请求</li>
  *     <li>限流时抛出 RateLimitException</li>
@@ -36,19 +37,32 @@ import java.lang.reflect.Method;
  * <p>使用示例：
  * <pre>
  * {@code
+ * // 使用全局配置
  * @DoRateLimit(key = "#userId")
  * public String getUserInfo(String userId) {
  *     return "info";
  * }
+ *
+ * // 使用自定义配置（覆盖全局配置）
+ * @DoRateLimit(key = "#userId", freq = 1000, interval = 60000, capacity = 1500)
+ * public String highFrequencyAPI(String userId) {
+ *     return "vip api";
+ * }
  * }
  * </pre>
+ *
+ * <p>注意：
+ * <ul>
+ *     <li>不同方法的限流器是独立的，互不影响</li>
+ *     <li>复合Key格式：全限定类名.方法名:业务Key</li>
+ *     <li>注解中的自定义配置会覆盖全局配置</li>
+ * </ul>
  *
  * @author clazs
  * @since 1.0
  */
 @Slf4j
 @Aspect
-@Component
 public class RateLimitAspect {
 
     /**
@@ -86,15 +100,20 @@ public class RateLimitAspect {
         Object[] args = joinPoint.getArgs();
         String[] parameterNames = nameDiscoverer.getParameterNames(method);
 
-        // 解析SpEL表达式获取限流Key
-        String key = parseKey(doRateLimit.key(), method, args, parameterNames);
+        // 解析SpEL表达式获取业务Key
+        String bizKey = parseKey(doRateLimit.key(), method, args, parameterNames);
+
+        // 生成复合Key：全限定类名.方法名:业务Key
+        // 例如：cn.clazs.controller.UserController.getUserInfo:123
+        String compositeKey = method.getDeclaringClass().getName() + "." + method.getName() + ":" + bizKey;
 
         if (log.isDebugEnabled()) {
-            log.debug("限流拦截：method={}, key={}", method.getName(), key);
+            log.debug("限流拦截：method={}, bizKey={}, compositeKey={}",
+                    method.getName(), bizKey, compositeKey);
         }
 
-        // 获取或创建用户的限流器
-        UserLimiter limiter = getLimiter(doRateLimit, key);
+        // 获取或创建用户的限流器（支持自定义配置）
+        UserLimiter limiter = getLimiter(doRateLimit, compositeKey);
 
         // 判断是否允许请求
         boolean allowed = limiter.allowRequest();
@@ -102,8 +121,9 @@ public class RateLimitAspect {
         if (!allowed) {
             // 限流触发，抛出异常
             String message = doRateLimit.message();
-            log.warn("限流触发：key={}, method={}", key, method.getName());
-            throw new RateLimitException(key, message);
+            log.warn("限流触发：compositeKey={}, bizKey={}, method={}",
+                    compositeKey, bizKey, method.getName());
+            throw new RateLimitException(bizKey, message);
         }
 
         // 允许通过，执行目标方法
@@ -114,16 +134,37 @@ public class RateLimitAspect {
     /**
      * 获取限流器（支持自定义配置覆盖全局配置）
      *
+     * <p>判断逻辑：
+     * <ul>
+     *     <li>如果注解中指定了自定义配置（freq>0 && interval>0 && capacity>0），使用自定义配置</li>
+     *     <li>否则使用全局配置（从yml读取）</li>
+     * </ul>
+     *
      * @param doRateLimit 限流注解
-     * @param key 限流 Key
+     * @param compositeKey 复合Key（全限定类名.方法名:业务Key）
      * @return 用户的限流器
      */
-    private UserLimiter getLimiter(DoRateLimit doRateLimit, String key) {
-        // 这里暂时简化处理，直接使用全局配置
-        // 下步 TODO：支持创建同key，同方法级别
+    private UserLimiter getLimiter(DoRateLimit doRateLimit, String compositeKey) {
+        // 判断是否使用了自定义配置（默认值 -1 表示使用全局配置）
+        boolean hasCustomConfig = doRateLimit.freq() > 0
+                && doRateLimit.interval() > 0
+                && doRateLimit.capacity() > 0;
 
-        // 直接从注册中心获取限流器（使用全局配置）
-        return rateLimitRegistry.getLimiter(key);
+        if (hasCustomConfig) {
+            // 使用自定义配置创建限流器
+            log.debug("使用自定义配置创建限流器：key={}, freq={}, interval={}ms, capacity={}",
+                    compositeKey, doRateLimit.freq(), doRateLimit.interval(), doRateLimit.capacity());
+            return rateLimitRegistry.getLimiter(
+                    compositeKey,
+                    doRateLimit.freq(),
+                    doRateLimit.interval(),
+                    doRateLimit.capacity()
+            );
+        } else {
+            // 使用全局配置创建限流器
+            log.debug("使用全局配置创建限流器：key={}", compositeKey);
+            return rateLimitRegistry.getLimiter(compositeKey);
+        }
     }
 
     /**

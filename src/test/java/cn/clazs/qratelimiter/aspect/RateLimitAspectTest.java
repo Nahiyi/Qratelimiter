@@ -222,6 +222,31 @@ class RateLimitAspectTest {
         assertEquals("自定义限流提示", annotation.message());
     }
 
+    @Test
+    @DisplayName("自定义配置：不同方法的相同 userId 使用不同限流参数")
+    void testDifferentConfigForDifferentMethods() {
+        // 全局配置：freq=3
+        // method1: 自定义 freq=10（高频接口）
+        // method2: 使用全局配置 freq=3（低频接口）
+
+        // 测试高频接口（10次）
+        UserLimiter highFreqLimiter = registry.getLimiter("TestService.highFreqAPI:user123", 10, 1000L, 15);
+        for (int i = 0; i < 10; i++) {
+            assertTrue(highFreqLimiter.allowRequest(), "高频接口第" + (i + 1) + "次应该成功");
+        }
+        assertFalse(highFreqLimiter.allowRequest(), "高频接口第11次应该被限流");
+
+        // 测试低频接口（3次）- 使用不同的复合Key
+        UserLimiter lowFreqLimiter = registry.getLimiter("TestService.lowFreqAPI:user123", 3, 1000L, 5);
+        for (int i = 0; i < 3; i++) {
+            assertTrue(lowFreqLimiter.allowRequest(), "低频接口第" + (i + 1) + "次应该成功");
+        }
+        assertFalse(lowFreqLimiter.allowRequest(), "低频接口第4次应该被限流");
+
+        // 验证两个限流器是独立的
+        assertNotSame(highFreqLimiter, lowFreqLimiter, "不同方法的限流器应该是独立的");
+    }
+
     // ==================== 测试服务类（模拟被拦截的方法）====================
 
     /**
