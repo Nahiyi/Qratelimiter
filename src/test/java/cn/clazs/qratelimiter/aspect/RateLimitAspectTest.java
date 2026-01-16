@@ -247,6 +247,41 @@ class RateLimitAspectTest {
         assertNotSame(highFreqLimiter, lowFreqLimiter, "不同方法的限流器应该是独立的");
     }
 
+    @Test
+    @DisplayName("容量自动计算：只指定 freq 和 interval，不指定 capacity")
+    void testCapacityAutoCalculation() {
+        // 只指定 freq=100, interval=1000，不指定 capacity（默认 -1）
+        // 系统应该自动计算 capacity = freq * 1.5 = 150
+        UserLimiter limiter = registry.getLimiter("api_key", 100, 1000L, -1);
+
+        assertNotNull(limiter, "限流器不应该为 null");
+        assertEquals(100, limiter.getFreq(), "频率应该是 100");
+        assertEquals(150, limiter.getCapacity(), "容量应该自动计算为 150");
+
+        // 验证限流功能正常
+        for (int i = 0; i < 100; i++) {
+            assertTrue(limiter.allowRequest(), "第" + (i + 1) + "次请求应该被允许");
+        }
+        assertFalse(limiter.allowRequest(), "第101次请求应该被限流");
+    }
+
+    @Test
+    @DisplayName("容量自动计算：位运算验证 freq + freq >> 1")
+    void testCapacityCalculationBitwise() {
+        // 验证位运算：freq + freq >> 1 等价于 freq * 1.5
+        // freq = 10, capacity = 10 + 10 >> 1 = 10 + 5 = 15
+        UserLimiter limiter1 = registry.getLimiter("api1", 10, 1000L, -1);
+        assertEquals(15, limiter1.getCapacity(), "10 * 1.5 = 15");
+
+        // freq = 100, capacity = 100 + 100 >> 1 = 100 + 50 = 150
+        UserLimiter limiter2 = registry.getLimiter("api2", 100, 1000L, -1);
+        assertEquals(150, limiter2.getCapacity(), "100 * 1.5 = 150");
+
+        // freq = 3, capacity = 3 + 3 >> 1 = 3 + 1 = 4（整数运算）
+        UserLimiter limiter3 = registry.getLimiter("api3", 3, 1000L, -1);
+        assertEquals(4, limiter3.getCapacity(), "3 + 3 >> 1 = 4");
+    }
+
     // ==================== 测试服务类（模拟被拦截的方法）====================
 
     /**

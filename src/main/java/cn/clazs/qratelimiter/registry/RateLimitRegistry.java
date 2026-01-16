@@ -94,7 +94,7 @@ public class RateLimitRegistry {
     }
 
     /**
-     * 获取指定用户的限流器（保障线程安全）
+     * 使用yml默认配置获取指定用户的限流器（保障线程安全）
      * 如果缓存中存在，直接返回；如果不存在，自动创建并放入缓存
      * 使用Caffeine的原子操作保证线程安全
      */
@@ -124,35 +124,44 @@ public class RateLimitRegistry {
     }
 
     /**
-     * 获取或创建限流器（使用自定义配置）
+     * 使用自定义配置获取或创建限流器
      * 支持方法级别的精细化限流配置，允许覆盖全局配置
+     * 容量自动计算：若 capacity <= 0，系统会自动计算为 freq + (freq >> 1)
      *
      * @param key    限流Key（可以是 userId，也可以是复合Key）
      * @param freq   频率限制（时间窗口内最大请求数）
      * @param interval 时间窗口长度（毫秒）
-     * @param capacity 数组容量（必须 >= freq）
+     * @param capacity 数组容量（如果 <= 0，则自动计算）
      */
     public UserLimiter getLimiter(String key, int freq, long interval, int capacity) {
         if (key == null || key.trim().isEmpty()) {
             throw new IllegalArgumentException("限流Key不能为空");
         }
 
-        // 参数校验
-        if (freq <= 0 || interval <= 0 || capacity <= 0) {
-            throw new IllegalArgumentException("限流参数必须大于0: freq=" + freq + ", interval=" + interval + ", capacity=" + capacity);
+        // 参数校验：freq 和 interval 必须大于 0
+        if (freq <= 0 || interval <= 0) {
+            throw new IllegalArgumentException("限流参数必须大于0: freq=" + freq + ", interval=" + interval);
         }
 
-        if (capacity < freq) {
-            throw new IllegalArgumentException("容量不能小于频率: capacity=" + capacity + ", freq=" + freq);
+        // 若用户未指定 capacity（<= 0），则自动计算
+        final int finalCapacity = capacity <= 0 ? freq + (freq >> 1) : capacity;
+
+        if (capacity <= 0) {
+            log.debug("自动计算容量：key={}, freq={}, autoCapacity={}", key, freq, finalCapacity);
+        }
+
+        // 最终校验：capacity 必须 >= freq
+        if (finalCapacity < freq) {
+            throw new IllegalArgumentException("容量不能小于频率: capacity=" + finalCapacity + ", freq=" + freq);
         }
 
         // Caffeine 的原子操作：如果存在就返回，不存在就创建
         UserLimiter limiter = limiterCache.get(key, cacheKey -> {
             log.debug("创建新的限流器（自定义配置）：key={}, freq={}, interval={}ms, capacity={}",
-                    key, freq, interval, capacity);
+                    key, freq, interval, finalCapacity);
 
-            // 创建新的限流器（使用自定义配置）
-            UserLimiter newLimiter = new UserLimiter(capacity, freq, interval);
+            // 创建新的限流器（使用最终计算后的容量）
+            UserLimiter newLimiter = new UserLimiter(finalCapacity, freq, interval);
 
             // 统计信息
             totalCreatedLimiters.incrementAndGet();
