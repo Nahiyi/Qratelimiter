@@ -39,6 +39,14 @@
             <version>${caffeine.version}</version>
         </dependency>
 
+        <!-- Spring Web (用于默认异常处理器) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <version>${spring-boot.version}</version>
+            <optional>true</optional>
+        </dependency>
+
         <!-- Optional Dependencies (不传递) -->
 
         <!-- 自动配置注解支持 (@ConditionalOn...) -->

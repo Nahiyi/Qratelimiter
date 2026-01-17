@@ -131,7 +131,24 @@ public class UserController {
 }
 ```
 
-### 3. 处理限流异常
+### 3. 处理限流异常（可选）
+
+QRateLimiter 自带默认异常处理器，会自动捕获 `RateLimitException` 并返回 **HTTP 429** 状态码：
+
+```yaml
+# 默认启用，可以禁用
+clazs:
+  ratelimiter:
+    exception-handler:
+      enabled: true  # 默认值
+```
+
+**默认行为：**
+- 返回 `429 Too Many Requests` 状态码
+- 返回 JSON 格式错误信息
+- 只打印简洁的 WARN 日志，不打印完整堆栈
+
+**如需自定义异常处理**，禁用默认处理器或创建自己的 `@RestControllerAdvice`：
 
 ```java
 @RestControllerAdvice

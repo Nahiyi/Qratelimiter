@@ -60,6 +60,23 @@ public class RateLimiterProperties {
     private long cacheMaximumSize = 10000L;
 
     /**
+     * 异常处理器配置
+     */
+    private ExceptionHandler exceptionHandler = new ExceptionHandler();
+
+    /**
+     * 异常处理器配置类
+     */
+    @Data
+    public static class ExceptionHandler {
+        /**
+         * 是否启用默认异常处理器（默认：true）
+         * 如果设置为 false，用户需要自己处理 RateLimitException
+         */
+        private boolean enabled = true;
+    }
+
+    /**
      * 验证配置参数的合法性
      *
      * @throws IllegalArgumentException 如果配置不合法
@@ -94,8 +111,9 @@ public class RateLimiterProperties {
     public String getSummary() {
         return String.format(
                 "RateLimiterProperties{enabled=%s, freq=%d, interval=%dms, capacity=%d, " +
-                        "cacheExpireAfterAccessMinutes=%d, cacheMaximumSize=%d}",
-                enabled, freq, interval, capacity, cacheExpireAfterAccessMinutes, cacheMaximumSize
+                        "cacheExpireAfterAccessMinutes=%d, cacheMaximumSize=%d, exceptionHandler.enabled=%s}",
+                enabled, freq, interval, capacity, cacheExpireAfterAccessMinutes, cacheMaximumSize,
+                exceptionHandler.isEnabled()
         );
     }
 }
