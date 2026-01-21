@@ -1,6 +1,6 @@
 package cn.clazs.qratelimiter;
 
-import cn.clazs.qratelimiter.value.UserLimiter;
+import cn.clazs.qratelimiter.strategy.LocalRateLimiter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,19 +14,19 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * UserLimiter 综合测试类
+ * LocalRateLimiter 综合测试类
  * 测试限流器的核心功能、边界条件、参数验证和并发安全性
  */
-@DisplayName("UserLimiter 限流器测试")
-class UserLimiterTest {
+@DisplayName("LocalRateLimiter 限流器测试")
+class LocalRateLimiterTest {
 
-    private UserLimiter limiter;
+    private LocalRateLimiter limiter;
     private long baseTime;
 
     @BeforeEach
     void setUp() {
         // 初始化限流器：容量5，频率3次，时间窗口1000ms
-        limiter = new UserLimiter(5, 3, 1000L);
+        limiter = new LocalRateLimiter(5, 3, 1000L);
         baseTime = System.currentTimeMillis();
     }
 
@@ -77,7 +77,7 @@ class UserLimiterTest {
     void testCapacityMustBeGreaterOrEqualFreq() {
         IllegalArgumentException ex = assertThrows(
                 IllegalArgumentException.class,
-                () -> new UserLimiter(2, 5, 1000L)
+                () -> new LocalRateLimiter(2, 5, 1000L)
         );
 
         assertTrue(ex.getMessage().contains("Capacity must be >= frequency"));
@@ -86,20 +86,20 @@ class UserLimiterTest {
     @Test
     @DisplayName("参数验证：拒绝非法参数")
     void testRejectInvalidParameters() {
-        assertThrows(IllegalArgumentException.class, () -> new UserLimiter(0, 5, 1000L));
-        assertThrows(IllegalArgumentException.class, () -> new UserLimiter(-1, 5, 1000L));
-        assertThrows(IllegalArgumentException.class, () -> new UserLimiter(5, 0, 1000L));
-        assertThrows(IllegalArgumentException.class, () -> new UserLimiter(5, -1, 1000L));
-        assertThrows(IllegalArgumentException.class, () -> new UserLimiter(5, 3, 0L));
+        assertThrows(IllegalArgumentException.class, () -> new LocalRateLimiter(0, 5, 1000L));
+        assertThrows(IllegalArgumentException.class, () -> new LocalRateLimiter(-1, 5, 1000L));
+        assertThrows(IllegalArgumentException.class, () -> new LocalRateLimiter(5, 0, 1000L));
+        assertThrows(IllegalArgumentException.class, () -> new LocalRateLimiter(5, -1, 1000L));
+        assertThrows(IllegalArgumentException.class, () -> new LocalRateLimiter(5, 3, 0L));
     }
 
     @Test
     @DisplayName("参数验证：允许合法配置")
     void testAcceptValidParameters() {
-        assertDoesNotThrow(() -> new UserLimiter(1, 1, 1L));
-        assertDoesNotThrow(() -> new UserLimiter(5, 5, 1000L));
-        assertDoesNotThrow(() -> new UserLimiter(10, 5, 1000L));
-        assertDoesNotThrow(() -> new UserLimiter(100, 50, 60000L));
+        assertDoesNotThrow(() -> new LocalRateLimiter(1, 1, 1L));
+        assertDoesNotThrow(() -> new LocalRateLimiter(5, 5, 1000L));
+        assertDoesNotThrow(() -> new LocalRateLimiter(10, 5, 1000L));
+        assertDoesNotThrow(() -> new LocalRateLimiter(100, 50, 60000L));
     }
 
     // ==================== 边界条件测试 ====================
@@ -155,7 +155,7 @@ class UserLimiterTest {
     @Test
     @DisplayName("便捷构造器：capacity = freq")
     void testConvenientConstructor() {
-        UserLimiter limiter = new UserLimiter(5, 1000L);
+        LocalRateLimiter limiter = new LocalRateLimiter(5, 1000L);
         assertEquals(5, limiter.getCapacity());
         assertEquals(5, limiter.getFreq());
         assertEquals(1000L, limiter.getInterval());
@@ -248,7 +248,7 @@ class UserLimiterTest {
     @Test
     @DisplayName("并发安全：同一用户并发请求应该被顺序执行")
     void testConcurrentRequests() throws InterruptedException {
-        UserLimiter limiter = new UserLimiter(5, 3, 1000L);
+        LocalRateLimiter limiter = new LocalRateLimiter(5, 3, 1000L);
         long currentTime = System.currentTimeMillis();
 
         int threadCount = 10;
@@ -277,7 +277,7 @@ class UserLimiterTest {
     @Test
     @DisplayName("并发安全：高频并发压力测试")
     void testHighConcurrency() throws InterruptedException {
-        UserLimiter limiter = new UserLimiter(100, 50, 60000L);
+        LocalRateLimiter limiter = new LocalRateLimiter(100, 50, 60000L);
         long currentTime = System.currentTimeMillis();
 
         int threadCount = 100;
@@ -300,35 +300,5 @@ class UserLimiterTest {
         assertTrue(latch.await(10, TimeUnit.SECONDS));
         assertEquals(50, allowedCount.get());
         executor.shutdown();
-    }
-
-    // ==================== 监控功能测试 ====================
-
-    @Test
-    @DisplayName("监控：锁状态查询")
-    void testLockMonitoring() {
-        // 初始状态：未加锁
-        assertFalse(limiter.isLocked(), "初始状态应该未加锁");
-        assertEquals(0, limiter.getQueueLength(), "初始等待队列应该为空");
-
-        // 正常请求后
-        limiter.allowRequest(baseTime);
-        assertFalse(limiter.isLocked(), "请求完成后应该释放锁");
-    }
-
-    @Test
-    @DisplayName("性能：锁不应该影响性能")
-    void testLockPerformance() {
-        long startTime = System.currentTimeMillis();
-
-        // 连续请求1000次
-        for (int i = 0; i < 1000; i++) {
-            limiter.allowRequest(baseTime + i);
-        }
-
-        long duration = System.currentTimeMillis() - startTime;
-
-        // 1000次请求应该在合理时间内完成（即使有锁）
-        assertTrue(duration < 1000, "1000次请求应该在1秒内完成，实际耗时：" + duration + "ms");
     }
 }

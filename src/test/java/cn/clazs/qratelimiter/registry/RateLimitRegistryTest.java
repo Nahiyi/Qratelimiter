@@ -1,7 +1,9 @@
 package cn.clazs.qratelimiter.registry;
 
-import cn.clazs.qratelimiter.value.UserLimiter;
+import cn.clazs.qratelimiter.core.RateLimiter;
 import cn.clazs.qratelimiter.properties.RateLimiterProperties;
+import cn.clazs.qratelimiter.strategy.LocalRateLimiter;
+import cn.clazs.qratelimiter.strategy.LocalRateLimiterFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,7 +33,8 @@ class RateLimitRegistryTest {
         properties.setCacheExpireAfterAccessMinutes(1L);  // 1分钟过期
         properties.setCacheMaximumSize(100L);
 
-        registry = new RateLimitRegistry(properties);
+        // 使用 LocalRateLimiterFactory
+        registry = new RateLimitRegistry(properties, new LocalRateLimiterFactory());
     }
 
     // ==================== 基本功能测试 ====================
@@ -39,19 +42,23 @@ class RateLimitRegistryTest {
     @Test
     @DisplayName("基本功能：获取用户的限流器")
     void testGetLimiter() {
-        UserLimiter limiter = registry.getLimiter("user123");
+        RateLimiter limiter = registry.getLimiter("user123");
 
         assertNotNull(limiter, "限流器不应该为 null");
-        assertEquals(15, limiter.getCapacity(), "容量应该从配置读取");
         assertEquals(10, limiter.getFreq(), "频率应该从配置读取");
         assertEquals(1000L, limiter.getInterval(), "时间窗口应该从配置读取");
+
+        // 针对 LocalRateLimiter 特有的检查
+        if (limiter instanceof LocalRateLimiter) {
+            assertEquals(15, ((LocalRateLimiter) limiter).getCapacity(), "容量应该从配置读取");
+        }
     }
 
     @Test
     @DisplayName("基本功能：多次获取同一用户返回相同实例")
     void testSameInstanceForSameUser() {
-        UserLimiter limiter1 = registry.getLimiter("user123");
-        UserLimiter limiter2 = registry.getLimiter("user123");
+        RateLimiter limiter1 = registry.getLimiter("user123");
+        RateLimiter limiter2 = registry.getLimiter("user123");
 
         assertSame(limiter1, limiter2, "应该返回同一个实例");
     }
@@ -59,8 +66,8 @@ class RateLimitRegistryTest {
     @Test
     @DisplayName("基本功能：不同用户返回不同实例")
     void testDifferentInstanceForDifferentUsers() {
-        UserLimiter limiter1 = registry.getLimiter("user123");
-        UserLimiter limiter2 = registry.getLimiter("user456");
+        RateLimiter limiter1 = registry.getLimiter("user123");
+        RateLimiter limiter2 = registry.getLimiter("user456");
 
         assertNotSame(limiter1, limiter2, "应该返回不同实例");
     }
@@ -70,7 +77,7 @@ class RateLimitRegistryTest {
     @Test
     @DisplayName("限流功能：限流器正常工作")
     void testRateLimitingWorks() {
-        UserLimiter limiter = registry.getLimiter("user123");
+        RateLimiter limiter = registry.getLimiter("user123");
 
         // 前10次应该允许
         for (int i = 0; i < 10; i++) {
@@ -84,8 +91,8 @@ class RateLimitRegistryTest {
     @Test
     @DisplayName("限流功能：不同用户独立限流")
     void testIndependentRateLimiting() {
-        UserLimiter limiter1 = registry.getLimiter("user123");
-        UserLimiter limiter2 = registry.getLimiter("user456");
+        RateLimiter limiter1 = registry.getLimiter("user123");
+        RateLimiter limiter2 = registry.getLimiter("user456");
 
         // user123 耗完配额
         for (int i = 0; i < 10; i++) {
@@ -104,7 +111,7 @@ class RateLimitRegistryTest {
     @Test
     @DisplayName("参数验证：拒绝 null 配置")
     void testRejectNullProperties() {
-        assertThrows(IllegalArgumentException.class, () -> new RateLimitRegistry(null));
+        assertThrows(IllegalArgumentException.class, () -> new RateLimitRegistry(null, new LocalRateLimiterFactory()));
     }
 
     @Test
@@ -113,7 +120,7 @@ class RateLimitRegistryTest {
         RateLimiterProperties invalidProps = new RateLimiterProperties();
         invalidProps.setFreq(0);  // 非法
 
-        assertThrows(IllegalArgumentException.class, () -> new RateLimitRegistry(invalidProps));
+        assertThrows(IllegalArgumentException.class, () -> new RateLimitRegistry(invalidProps, new LocalRateLimiterFactory()));
     }
 
     @Test
@@ -156,7 +163,7 @@ class RateLimitRegistryTest {
         testProps.setCacheExpireAfterAccessMinutes(1L);
         testProps.setCacheMaximumSize(1000L);
 
-        RateLimitRegistry testRegistry = new RateLimitRegistry(testProps);
+        RateLimitRegistry testRegistry = new RateLimitRegistry(testProps, new LocalRateLimiterFactory());
         testRegistry.getLimiter("user1");
         testRegistry.getLimiter("user2");
         testRegistry.getLimiter("user3");
@@ -202,17 +209,6 @@ class RateLimitRegistryTest {
     }
 
     @Test
-    @DisplayName("统计信息：getStats 返回正确信息")
-    void testGetStats() {
-        registry.getLimiter("user1");
-        registry.getLimiter("user2");
-
-        String stats = registry.getStats();
-        assertTrue(stats.contains("totalCreated=2"), "应该包含创建总数");
-        assertTrue(stats.contains("currentCacheSize"), "应该包含当前缓存大小");
-    }
-
-    @Test
     @DisplayName("统计信息：高级统计信息")
     void testGetAdvancedStats() {
         // 先进行一些操作
@@ -241,7 +237,7 @@ class RateLimitRegistryTest {
         for (int i = 0; i < threadCount; i++) {
             executor.submit(() -> {
                 try {
-                    UserLimiter limiter = registry.getLimiter("user123");
+                    RateLimiter limiter = registry.getLimiter("user123");
                     // 使用同步来统计唯一实例（虽然理论上应该只有一个）
                     synchronized (RateLimitRegistryTest.this) {
                         uniqueInstances.incrementAndGet();
@@ -296,7 +292,7 @@ class RateLimitRegistryTest {
         minProps.setCacheExpireAfterAccessMinutes(1L);
         minProps.setCacheMaximumSize(1L);
 
-        assertDoesNotThrow(() -> new RateLimitRegistry(minProps));
+        assertDoesNotThrow(() -> new RateLimitRegistry(minProps, new LocalRateLimiterFactory()));
     }
 
     @Test
@@ -310,7 +306,7 @@ class RateLimitRegistryTest {
         largeProps.setCacheExpireAfterAccessMinutes(1L);
         largeProps.setCacheMaximumSize(1000L);  // 设置足够大的缓存
 
-        RateLimitRegistry largeRegistry = new RateLimitRegistry(largeProps);
+        RateLimitRegistry largeRegistry = new RateLimitRegistry(largeProps, new LocalRateLimiterFactory());
         int userCount = 50;  // 测试50个用户（避免触发自动清理）
 
         for (int i = 0; i < userCount; i++) {

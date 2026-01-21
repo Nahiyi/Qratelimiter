@@ -1,4 +1,4 @@
-package cn.clazs.qratelimiter.value;
+package cn.clazs.qratelimiter.strategy;
 
 import cn.clazs.qratelimiter.util.TimestampUtil;
 import lombok.Getter;
@@ -17,6 +17,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author clazs
  * @since 1.0
  */
+@Deprecated
 public class UserLimiter {
     /** 时间戳数组（环形缓冲区） */
     private final long[] timestamps;

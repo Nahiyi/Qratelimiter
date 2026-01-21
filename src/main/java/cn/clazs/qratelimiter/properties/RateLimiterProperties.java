@@ -60,6 +60,13 @@ public class RateLimiterProperties {
     private long cacheMaximumSize = 10000L;
 
     /**
+     * 存储类型（默认：LOCAL）
+     * LOCAL: 本地内存（基于Caffeine + 环形数组）
+     * REDIS: 分布式存储（基于Redis + Lua脚本）
+     */
+    private StorageType storageType = StorageType.LOCAL;
+
+    /**
      * 验证配置参数的合法性
      *
      * @throws IllegalArgumentException 如果配置不合法
@@ -89,13 +96,23 @@ public class RateLimiterProperties {
     }
 
     /**
+     * 存储类型枚举
+     */
+    public enum StorageType {
+        /** 本地内存 */
+        LOCAL,
+        /** 分布式 Redis */
+        REDIS
+    }
+
+    /**
      * 获取配置摘要信息（用于日志输出）
      */
     public String getSummary() {
         return String.format(
-                "RateLimiterProperties{enabled=%s, freq=%d, interval=%dms, capacity=%d, " +
+                "RateLimiterProperties{enabled=%s, storageType=%s, freq=%d, interval=%dms, capacity=%d, " +
                         "cacheExpireAfterAccessMinutes=%d, cacheMaximumSize=%d}",
-                enabled, freq, interval, capacity, cacheExpireAfterAccessMinutes, cacheMaximumSize
+                enabled, storageType, freq, interval, capacity, cacheExpireAfterAccessMinutes, cacheMaximumSize
         );
     }
 }

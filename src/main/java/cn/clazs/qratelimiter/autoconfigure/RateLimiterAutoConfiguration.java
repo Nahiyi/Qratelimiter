@@ -1,14 +1,19 @@
 package cn.clazs.qratelimiter.autoconfigure;
 
 import cn.clazs.qratelimiter.aspect.RateLimitAspect;
+import cn.clazs.qratelimiter.core.RateLimiterFactory;
 import cn.clazs.qratelimiter.properties.RateLimiterProperties;
 import cn.clazs.qratelimiter.registry.RateLimitRegistry;
+import cn.clazs.qratelimiter.strategy.LocalRateLimiterFactory;
+import cn.clazs.qratelimiter.strategy.RedisRateLimiterFactory;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
  * 限流器自动配置类
@@ -18,53 +23,13 @@ import org.springframework.context.annotation.Configuration;
  * <p>自动配置的功能：
  * <ul>
  *     <li>自动注册 {@link RateLimiterProperties} 配置属性 Bean</li>
+ *     <li>自动注册 {@link RateLimiterFactory} 限流器工厂 Bean (Local 或 Redis)</li>
  *     <li>自动注册 {@link RateLimitRegistry} 限流器注册中心 Bean</li>
  *     <li>自动注册 {@link RateLimitAspect} AOP 切面 Bean</li>
- *     <li>支持通过 {@code clazs.ratelimiter.enabled=false} 关闭自动配置</li>
- *     <li>支持用户自定义 Bean 覆盖（@ConditionalOnMissingBean）</li>
- * </ul>
- *
- * <p>使用示例：
- * <pre>{@code
- * // 1. 添加依赖（pom.xml）
- * <dependency>
- *     <groupId>cn.clazs</groupId>
- *     <artifactId>qratelimiter-spring-boot-starter</artifactId>
- *     <version>1.0.0</version>
- * </dependency>
- *
- * // 2. 配置 application.yml
- * clazs:
- *   ratelimiter:
- *     enabled: true
- *     freq: 100
- *     interval: 60000
- *     capacity: 150
- *
- * // 3. 直接使用注解
- * @RestController
- * public class UserController {
- *     @DoRateLimit(key = "#userId")
- *     @GetMapping("/info")
- *     public String getUserInfo(String userId) {
- *         return "info";
- *     }
- * }
- * }</pre>
- *
- * <p>自动配置原理：
- * <ul>
- *     <li>Spring Boot 启动时，通过 {@code spring.factories} 加载此类</li>
- *     <li>{@link EnableConfigurationProperties} 启用配置属性绑定</li>
- *     <li>{@link ConditionalOnProperty} 控制自动配置的启用条件</li>
- *     <li>{@link ConditionalOnMissingBean} 允许用户自定义 Bean 覆盖</li>
  * </ul>
  *
  * @author clazs
  * @since 1.0
- * @see RateLimiterProperties
- * @see RateLimitRegistry
- * @see RateLimitAspect
  */
 @Slf4j
 @Configuration
@@ -73,34 +38,48 @@ import org.springframework.context.annotation.Configuration;
 public class RateLimiterAutoConfiguration {
 
     /**
+     * 注册本地限流器工厂 (当 storage-type 为 local 或不配置时生效)
+     */
+    @Bean
+    @ConditionalOnMissingBean(RateLimiterFactory.class)
+    @ConditionalOnProperty(prefix = "clazs.ratelimiter", name = "storage-type", havingValue = "local", matchIfMissing = true)
+    public RateLimiterFactory localRateLimiterFactory() {
+        log.info("初始化 LocalRateLimiterFactory Bean (本地内存模式)");
+        return new LocalRateLimiterFactory();
+    }
+
+    /**
+     * Redis 配置类 (仅当引入了 Redis 依赖且 storage-type 为 redis 时生效)
+     */
+    @Configuration
+    @ConditionalOnClass(StringRedisTemplate.class)
+    @ConditionalOnProperty(prefix = "clazs.ratelimiter", name = "storage-type", havingValue = "redis")
+    static class RedisConfiguration {
+        @Bean
+        @ConditionalOnMissingBean(RateLimiterFactory.class)
+        public RateLimiterFactory redisRateLimiterFactory(StringRedisTemplate redisTemplate) {
+            log.info("初始化 RedisRateLimiterFactory Bean (分布式Redis模式)");
+            return new RedisRateLimiterFactory(redisTemplate);
+        }
+    }
+
+    /**
      * 注册限流器注册中心 Bean
      *
-     * <p>职责：
-     * <ul>
-     *     <li>管理所有用户的限流器实例（使用 Caffeine 缓存）</li>
-     *     <li>自动清理不活跃的限流器（防止内存泄漏）</li>
-     *     <li>支持方法级别的自定义配置</li>
-     * </ul>
-     *
-     * <p>条件注解说明：
-     * <ul>
-     *     <li>只有当 Spring 容器中不存在 {@link RateLimitRegistry} Bean 时，才会创建</li>
-     *     <li>允许用户自定义 {@link RateLimitRegistry} Bean 覆盖默认实现</li>
-     * </ul>
-     *
      * @param properties 从 application.yml 读取的配置属性
+     * @param factory 限流器工厂
      * @return 限流器注册中心
      */
     @Bean
     @ConditionalOnMissingBean
-    public RateLimitRegistry rateLimitRegistry(RateLimiterProperties properties) {
-        log.info("初始化 RateLimitRegistry Bean，配置：{}", properties.getSummary());
+    public RateLimitRegistry rateLimitRegistry(RateLimiterProperties properties, RateLimiterFactory factory) {
+        log.info("初始化 RateLimitRegistry Bean");
 
         // 验证配置
         properties.validate();
 
         // 创建注册中心
-        RateLimitRegistry registry = new RateLimitRegistry(properties);
+        RateLimitRegistry registry = new RateLimitRegistry(properties, factory);
 
         log.info("RateLimitRegistry Bean 创建成功");
         return registry;
@@ -108,20 +87,6 @@ public class RateLimiterAutoConfiguration {
 
     /**
      * 注册限流切面 Bean
-     *
-     * <p>职责：
-     * <ul>
-     *     <li>拦截标注了 {@link cn.clazs.qratelimiter.annotation.DoRateLimit} 注解的方法</li>
-     *     <li>解析 SpEL 表达式获取限流 Key</li>
-     *     <li>调用 {@link RateLimitRegistry} 获取限流器并判断是否允许请求</li>
-     *     <li>限流时抛出 {@link cn.clazs.qratelimiter.exception.RateLimitException}</li>
-     * </ul>
-     *
-     * <p>条件注解说明：
-     * <ul>
-     *     <li>只有当 Spring 容器中不存在 {@link RateLimitAspect} Bean 时，才会创建</li>
-     *     <li>允许用户自定义 {@link RateLimitAspect} Bean 覆盖默认实现</li>
-     * </ul>
      *
      * @param registry 限流器注册中心
      * @return 限流切面

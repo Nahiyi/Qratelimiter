@@ -2,9 +2,9 @@ package cn.clazs.qratelimiter.aspect;
 
 import cn.clazs.qratelimiter.annotation.DoRateLimit;
 import cn.clazs.qratelimiter.annotation.RateLimitScope;
+import cn.clazs.qratelimiter.core.RateLimiter;
 import cn.clazs.qratelimiter.exception.RateLimitException;
 import cn.clazs.qratelimiter.registry.RateLimitRegistry;
-import cn.clazs.qratelimiter.value.UserLimiter;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -124,7 +124,7 @@ public class RateLimitAspect {
         }
 
         // 获取或创建用户的限流器（支持自定义配置）
-        UserLimiter limiter = getLimiter(doRateLimit, finalKey);
+        RateLimiter limiter = getLimiter(doRateLimit, finalKey);
 
         // 判断是否允许请求
         boolean allowed = limiter.allowRequest();
@@ -158,7 +158,7 @@ public class RateLimitAspect {
      * @param finalKey 最终Key：可能是全限定类名.方法名:业务Key；也可能是直接业务Key
      * @return 用户的限流器
      */
-    private UserLimiter getLimiter(DoRateLimit doRateLimit, String finalKey) {
+    private RateLimiter getLimiter(DoRateLimit doRateLimit, String finalKey) {
         int freq = doRateLimit.freq();
         long interval = doRateLimit.interval();
         boolean hasCustomConfig = freq > 0 && interval > 0;

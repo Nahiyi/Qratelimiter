@@ -1,10 +1,12 @@
 package cn.clazs.qratelimiter.aspect;
 
 import cn.clazs.qratelimiter.annotation.DoRateLimit;
+import cn.clazs.qratelimiter.core.RateLimiter;
 import cn.clazs.qratelimiter.exception.RateLimitException;
 import cn.clazs.qratelimiter.properties.RateLimiterProperties;
 import cn.clazs.qratelimiter.registry.RateLimitRegistry;
-import cn.clazs.qratelimiter.value.UserLimiter;
+import cn.clazs.qratelimiter.strategy.LocalRateLimiter;
+import cn.clazs.qratelimiter.strategy.LocalRateLimiterFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,7 +36,7 @@ class RateLimitAspectTest {
         properties.setCacheMaximumSize(100L);
 
         // 创建注册中心
-        registry = new RateLimitRegistry(properties);
+        registry = new RateLimitRegistry(properties, new LocalRateLimiterFactory());
 
         // 创建切面
         aspect = new RateLimitAspect(registry);
@@ -45,17 +47,19 @@ class RateLimitAspectTest {
     @Test
     @DisplayName("基本功能：限流器注册和获取")
     void testRegistryAndGetLimiter() {
-        UserLimiter limiter = registry.getLimiter("user123");
+        RateLimiter limiter = registry.getLimiter("user123");
 
         assertNotNull(limiter, "限流器不应该为 null");
-        assertEquals(5, limiter.getCapacity());
         assertEquals(3, limiter.getFreq());
+        if (limiter instanceof LocalRateLimiter) {
+            assertEquals(5, ((LocalRateLimiter) limiter).getCapacity());
+        }
     }
 
     @Test
     @DisplayName("基本功能：正常请求应该被允许")
     void testNormalRequestAllowed() {
-        UserLimiter limiter = registry.getLimiter("user123");
+        RateLimiter limiter = registry.getLimiter("user123");
 
         // 前3次请求应该成功
         for (int i = 0; i < 3; i++) {
@@ -66,7 +70,7 @@ class RateLimitAspectTest {
     @Test
     @DisplayName("基本功能：超频请求应该被拦截")
     void testRateLimitTriggered() {
-        UserLimiter limiter = registry.getLimiter("user456");
+        RateLimiter limiter = registry.getLimiter("user456");
 
         // 前3次请求应该成功
         for (int i = 0; i < 3; i++) {
@@ -80,8 +84,8 @@ class RateLimitAspectTest {
     @Test
     @DisplayName("基本功能：不同用户独立限流")
     void testDifferentUsersIndependentLimiting() {
-        UserLimiter limiterA = registry.getLimiter("userA");
-        UserLimiter limiterB = registry.getLimiter("userB");
+        RateLimiter limiterA = registry.getLimiter("userA");
+        RateLimiter limiterB = registry.getLimiter("userB");
 
         // userA 耗完配额
         for (int i = 0; i < 3; i++) {
@@ -100,8 +104,8 @@ class RateLimitAspectTest {
     @Test
     @DisplayName("基本功能：常量 Key 应该正常工作")
     void testConstantKey() {
-        UserLimiter limiter1 = registry.getLimiter("'api_constant_key'");
-        UserLimiter limiter2 = registry.getLimiter("'api_constant_key'");
+        RateLimiter limiter1 = registry.getLimiter("'api_constant_key'");
+        RateLimiter limiter2 = registry.getLimiter("'api_constant_key'");
 
         // 应该返回同一个限流器
         assertSame(limiter1, limiter2, "常量 Key 应该返回同一个限流器");
@@ -113,7 +117,7 @@ class RateLimitAspectTest {
     @DisplayName("边界条件：特殊字符 Key 应该正常工作")
     void testSpecialCharactersInKey() {
         String specialKey = "user_123@example.com";
-        UserLimiter limiter = registry.getLimiter(specialKey);
+        RateLimiter limiter = registry.getLimiter(specialKey);
 
         assertNotNull(limiter, "特殊字符 Key 的限流器不应该为 null");
 
@@ -130,7 +134,7 @@ class RateLimitAspectTest {
     @DisplayName("边界条件：Long 类型 Key 应该正常工作")
     void testLongTypeKey() {
         Long userId = 123456L;
-        UserLimiter limiter = registry.getLimiter(userId.toString());
+        RateLimiter limiter = registry.getLimiter(userId.toString());
 
         assertNotNull(limiter);
         assertEquals(3, limiter.getFreq());
@@ -140,7 +144,7 @@ class RateLimitAspectTest {
     @DisplayName("边界条件：中文 Key 应该正常工作")
     void testChineseKey() {
         String chineseKey = "用户张三";
-        UserLimiter limiter = registry.getLimiter(chineseKey);
+        RateLimiter limiter = registry.getLimiter(chineseKey);
 
         assertNotNull(limiter);
 
@@ -176,8 +180,8 @@ class RateLimitAspectTest {
     @Test
     @DisplayName("注册中心：同一用户多次获取返回相同实例")
     void testSameInstanceForSameUser() {
-        UserLimiter limiter1 = registry.getLimiter("user789");
-        UserLimiter limiter2 = registry.getLimiter("user789");
+        RateLimiter limiter1 = registry.getLimiter("user789");
+        RateLimiter limiter2 = registry.getLimiter("user789");
 
         assertSame(limiter1, limiter2, "应该返回同一个限流器实例");
     }
@@ -230,14 +234,14 @@ class RateLimitAspectTest {
         // method2: 使用全局配置 freq=3（低频接口）
 
         // 测试高频接口（10次）
-        UserLimiter highFreqLimiter = registry.getLimiter("TestService.highFreqAPI:user123", 10, 1000L, 15);
+        RateLimiter highFreqLimiter = registry.getLimiter("TestService.highFreqAPI:user123", 10, 1000L, 15);
         for (int i = 0; i < 10; i++) {
             assertTrue(highFreqLimiter.allowRequest(), "高频接口第" + (i + 1) + "次应该成功");
         }
         assertFalse(highFreqLimiter.allowRequest(), "高频接口第11次应该被限流");
 
         // 测试低频接口（3次）- 使用不同的复合Key
-        UserLimiter lowFreqLimiter = registry.getLimiter("TestService.lowFreqAPI:user123", 3, 1000L, 5);
+        RateLimiter lowFreqLimiter = registry.getLimiter("TestService.lowFreqAPI:user123", 3, 1000L, 5);
         for (int i = 0; i < 3; i++) {
             assertTrue(lowFreqLimiter.allowRequest(), "低频接口第" + (i + 1) + "次应该成功");
         }
@@ -252,11 +256,13 @@ class RateLimitAspectTest {
     void testCapacityAutoCalculation() {
         // 只指定 freq=100, interval=1000，不指定 capacity（默认 -1）
         // 系统应该自动计算 capacity = freq * 1.5 = 150
-        UserLimiter limiter = registry.getLimiter("api_key", 100, 1000L, -1);
+        RateLimiter limiter = registry.getLimiter("api_key", 100, 1000L, -1);
 
         assertNotNull(limiter, "限流器不应该为 null");
         assertEquals(100, limiter.getFreq(), "频率应该是 100");
-        assertEquals(150, limiter.getCapacity(), "容量应该自动计算为 150");
+        if (limiter instanceof LocalRateLimiter) {
+            assertEquals(150, ((LocalRateLimiter) limiter).getCapacity(), "容量应该自动计算为 150");
+        }
 
         // 验证限流功能正常
         for (int i = 0; i < 100; i++) {
@@ -270,16 +276,22 @@ class RateLimitAspectTest {
     void testCapacityCalculationBitwise() {
         // 验证位运算：freq + freq >> 1 等价于 freq * 1.5
         // freq = 10, capacity = 10 + 10 >> 1 = 10 + 5 = 15
-        UserLimiter limiter1 = registry.getLimiter("api1", 10, 1000L, -1);
-        assertEquals(15, limiter1.getCapacity(), "10 * 1.5 = 15");
+        RateLimiter limiter1 = registry.getLimiter("api1", 10, 1000L, -1);
+        if (limiter1 instanceof LocalRateLimiter) {
+            assertEquals(15, ((LocalRateLimiter) limiter1).getCapacity(), "10 * 1.5 = 15");
+        }
 
         // freq = 100, capacity = 100 + 100 >> 1 = 100 + 50 = 150
-        UserLimiter limiter2 = registry.getLimiter("api2", 100, 1000L, -1);
-        assertEquals(150, limiter2.getCapacity(), "100 * 1.5 = 150");
+        RateLimiter limiter2 = registry.getLimiter("api2", 100, 1000L, -1);
+        if (limiter2 instanceof LocalRateLimiter) {
+            assertEquals(150, ((LocalRateLimiter) limiter2).getCapacity(), "100 * 1.5 = 150");
+        }
 
         // freq = 3, capacity = 3 + 3 >> 1 = 3 + 1 = 4（整数运算）
-        UserLimiter limiter3 = registry.getLimiter("api3", 3, 1000L, -1);
-        assertEquals(4, limiter3.getCapacity(), "3 + 3 >> 1 = 4");
+        RateLimiter limiter3 = registry.getLimiter("api3", 3, 1000L, -1);
+        if (limiter3 instanceof LocalRateLimiter) {
+            assertEquals(4, ((LocalRateLimiter) limiter3).getCapacity(), "3 + 3 >> 1 = 4");
+        }
     }
 
     // ==================== 测试服务类（模拟被拦截的方法）====================

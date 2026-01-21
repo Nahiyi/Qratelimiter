@@ -1,7 +1,8 @@
 package cn.clazs.qratelimiter.registry;
 
+import cn.clazs.qratelimiter.core.RateLimiter;
+import cn.clazs.qratelimiter.core.RateLimiterFactory;
 import cn.clazs.qratelimiter.properties.RateLimiterProperties;
-import cn.clazs.qratelimiter.value.UserLimiter;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.Getter;
@@ -13,30 +14,13 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * 限流器注册中心
  * 使用 Caffeine 缓存管理所有用户的限流器实例，自动清理不活跃用户
- *
+ * 
  * <p>核心功能：
  * <ul>
- *     <li>管理 Map<UserId, UserLimiter></li>
+ *     <li>管理 Map<UserId, RateLimiter></li>
  *     <li>自动清理不活跃用户（防止内存泄漏）</li>
- *     <li>线程安全的 Limiter 创建</li>
- *     <li>支持从配置文件读取参数</li>
+ *     <li>线程安全的 Limiter 创建（委托给 Factory）</li>
  * </ul>
- *
- * <p>使用示例：
- * <pre>
- * // 创建注册中心
- * RateLimiterProperties properties = new RateLimiterProperties();
- * properties.setFreq(100);
- * properties.setInterval(60000L);
- * properties.setCapacity(150);
- * RateLimitRegistry registry = new RateLimitRegistry(properties);
- *
- * // 获取用户的限流器
- * UserLimiter limiter = registry.getLimiter("user123");
- * if (limiter.allowRequest()) {
- *     // 处理请求
- * }
- * </pre>
  *
  * @author clazs
  * @since 1.0
@@ -45,15 +29,20 @@ import java.util.concurrent.atomic.AtomicLong;
 public class RateLimitRegistry {
 
     /**
-     * Caffeine 缓存：存储 UserId ---> UserLimiter 的映射
+     * Caffeine 缓存：存储 UserId ---> RateLimiter 的映射
      */
-    private final Cache<String, UserLimiter> limiterCache;
+    private final Cache<String, RateLimiter> limiterCache;
 
     /**
      * 全局默认配置
      */
     @Getter
     private final RateLimiterProperties properties;
+
+    /**
+     * 限流器工厂
+     */
+    private final RateLimiterFactory rateLimiterFactory;
 
     /**
      * 统计信息：创建的限流器总数
@@ -64,15 +53,20 @@ public class RateLimitRegistry {
      * 根据配置创建注册中心
      *
      * @param properties 限流器配置
+     * @param rateLimiterFactory 限流器工厂
      */
-    public RateLimitRegistry(RateLimiterProperties properties) {
+    public RateLimitRegistry(RateLimiterProperties properties, RateLimiterFactory rateLimiterFactory) {
         if (properties == null) {
             throw new IllegalArgumentException("非法配置 -> null");
+        }
+        if (rateLimiterFactory == null) {
+            throw new IllegalArgumentException("限流器工厂不能为空");
         }
 
         // 验证配置
         properties.validate();
         this.properties = properties;
+        this.rateLimiterFactory = rateLimiterFactory;
 
         log.info("初始化 RateLimitRegistry，配置：{}", properties.getSummary());
 
@@ -96,31 +90,9 @@ public class RateLimitRegistry {
     /**
      * 使用yml默认配置获取指定用户的限流器（保障线程安全）
      * 如果缓存中存在，直接返回；如果不存在，自动创建并放入缓存
-     * 使用Caffeine的原子操作保证线程安全
      */
-    public UserLimiter getLimiter(String userId) {
-        if (userId == null || userId.trim().isEmpty()) {
-            throw new IllegalArgumentException("用户ID不能为空");
-        }
-
-        // Caffeine 的原子操作：如果存在就返回，不存在就创建
-        UserLimiter limiter = limiterCache.get(userId, key -> {
-            log.debug("创建新的限流器：userId={}", key);
-
-            // 创建新的限流器：从properties取默认值
-            UserLimiter newLimiter = new UserLimiter(
-                    properties.getCapacity(),
-                    properties.getFreq(),
-                    properties.getInterval()
-            );
-
-            // 统计信息
-            totalCreatedLimiters.incrementAndGet();
-
-            return newLimiter;
-        });
-
-        return limiter;
+    public RateLimiter getLimiter(String userId) {
+        return getLimiter(userId, properties.getFreq(), properties.getInterval(), properties.getCapacity());
     }
 
     /**
@@ -133,7 +105,7 @@ public class RateLimitRegistry {
      * @param interval 时间窗口长度（毫秒）
      * @param capacity 数组容量（如果 <= 0，则自动计算）
      */
-    public UserLimiter getLimiter(String key, int freq, long interval, int capacity) {
+    public RateLimiter getLimiter(String key, int freq, long interval, int capacity) {
         if (key == null || key.trim().isEmpty()) {
             throw new IllegalArgumentException("限流Key不能为空");
         }
@@ -156,17 +128,15 @@ public class RateLimitRegistry {
         }
 
         // Caffeine 的原子操作：如果存在就返回，不存在就创建
-        UserLimiter limiter = limiterCache.get(key, cacheKey -> {
-            log.debug("创建新的限流器（自定义配置）：key={}, freq={}, interval={}ms, capacity={}",
-                    key, freq, interval, finalCapacity);
-
-            // 创建新的限流器（使用最终计算后的容量）
-            UserLimiter newLimiter = new UserLimiter(finalCapacity, freq, interval);
+        RateLimiter limiter = limiterCache.get(key, cacheKey -> {
+            log.debug("创建新的限流器（自定义配置）：key={}, freq={}, interval={}ms, capacity={}, mode={}",
+                    key, freq, interval, finalCapacity, properties.getStorageType());
 
             // 统计信息
             totalCreatedLimiters.incrementAndGet();
 
-            return newLimiter;
+            // 使用工厂创建实例
+            return rateLimiterFactory.create(key, freq, interval, finalCapacity);
         });
 
         return limiter;
@@ -187,7 +157,6 @@ public class RateLimitRegistry {
 
     /**
      * 手动移除指定用户的限流器
-     * ps.通常不需要手动调用，Caffeine会自动清理不活跃用户
      *
      * @param userId 用户ID
      */
@@ -209,25 +178,9 @@ public class RateLimitRegistry {
 
     /**
      * 获取当前缓存的限流器数量（实时估算值）
-     *
-     * @return 当前缓存大小
      */
     public long getCurrentCacheSize() {
         return limiterCache.estimatedSize();
-    }
-
-    /**
-     * 获取统计信息
-     *
-     * @return 统计信息摘要
-     */
-    public String getStats() {
-        return String.format(
-                "RateLimitRegistryStats{totalCreated=%d, currentCacheSize=%d, maxSize=%d}",
-                totalCreatedLimiters.get(),
-                getCurrentCacheSize(),
-                properties.getCacheMaximumSize()
-        );
     }
 
     /**
@@ -254,7 +207,7 @@ public class RateLimitRegistry {
     }
 
     /**
-     * 缓存统计信息（相当于一个DTO）
+     * 缓存统计信息
      */
     @Getter
     public static class CacheStats {
