@@ -1,5 +1,7 @@
 package cn.clazs.qratelimiter.properties;
 
+import cn.clazs.qratelimiter.enums.RateLimitAlgorithm;
+import cn.clazs.qratelimiter.enums.RateLimitStorage;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
@@ -16,10 +18,12 @@ import org.springframework.stereotype.Component;
  *     freq: 100
  *     interval: 60000
  *     capacity: 150
+ *     algorithm: sliding-window-log
+ *     storage: local
  * </pre>
  *
  * @author clazs
- * @since 1.0
+ * @since 1.0.0
  */
 @Data
 @Component
@@ -60,6 +64,21 @@ public class RateLimiterProperties {
     private long cacheMaximumSize = 10000L;
 
     /**
+     * 限流算法类型（默认：滑动窗口日志算法）
+     */
+    private RateLimitAlgorithm algorithm = RateLimitAlgorithm.SLIDING_WINDOW_LOG;
+
+    /**
+     * 存储类型（默认：本地内存）
+     */
+    private RateLimitStorage storage = RateLimitStorage.LOCAL;
+
+    /**
+     * Redis 配置
+     */
+    private RedisConfig redis = new RedisConfig();
+
+    /**
      * 验证配置参数的合法性
      *
      * @throws IllegalArgumentException 如果配置不合法
@@ -86,6 +105,12 @@ public class RateLimiterProperties {
         if (cacheMaximumSize <= 0) {
             throw new IllegalArgumentException("配置错误：cacheMaximumSize 必须大于 0");
         }
+        if (algorithm == null) {
+            throw new IllegalArgumentException("配置错误：algorithm 不能为 null");
+        }
+        if (storage == null) {
+            throw new IllegalArgumentException("配置错误：storage 不能为 null");
+        }
     }
 
     /**
@@ -94,8 +119,25 @@ public class RateLimiterProperties {
     public String getSummary() {
         return String.format(
                 "RateLimiterProperties{enabled=%s, freq=%d, interval=%dms, capacity=%d, " +
-                        "cacheExpireAfterAccessMinutes=%d, cacheMaximumSize=%d}",
-                enabled, freq, interval, capacity, cacheExpireAfterAccessMinutes, cacheMaximumSize
+                        "algorithm=%s, storage=%s, cacheExpireAfterAccessMinutes=%d, cacheMaximumSize=%d}",
+                enabled, freq, interval, capacity, algorithm, storage,
+                cacheExpireAfterAccessMinutes, cacheMaximumSize
         );
+    }
+
+    /**
+     * Redis 配置类
+     */
+    @Data
+    public static class RedisConfig {
+        /**
+         * Redis 键前缀（默认：qratelimiter:）
+         */
+        private String keyPrefix = "qratelimiter:";
+
+        /**
+         * Lua 脚本位置（默认：classpath:redis/）
+         */
+        private String scriptLocation = "classpath:redis/";
     }
 }

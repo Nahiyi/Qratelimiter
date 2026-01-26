@@ -2,9 +2,11 @@ package cn.clazs.qratelimiter.aspect;
 
 import cn.clazs.qratelimiter.annotation.DoRateLimit;
 import cn.clazs.qratelimiter.annotation.RateLimitScope;
+import cn.clazs.qratelimiter.core.RateLimiter;
+import cn.clazs.qratelimiter.enums.RateLimitAlgorithm;
+import cn.clazs.qratelimiter.enums.RateLimitStorage;
 import cn.clazs.qratelimiter.exception.RateLimitException;
 import cn.clazs.qratelimiter.registry.RateLimitRegistry;
-import cn.clazs.qratelimiter.value.UserLimiter;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -30,7 +32,7 @@ import java.lang.reflect.Method;
  *     <li>解析 SpEL 表达式获取限流 Key</li>
  *     <li>生成复合Key（全限定类名.方法名:业务Key）实现方法级别隔离</li>
  *     <li>支持自定义限流配置（覆盖全局配置）</li>
- *     <li>从注册中心获取用户的限流器</li>
+ *     <li>从注册中心获取限流器</li>
  *     <li>判断是否允许请求</li>
  *     <li>限流时抛出 RateLimitException</li>
  * </ul>
@@ -60,7 +62,7 @@ import java.lang.reflect.Method;
  * </ul>
  *
  * @author clazs
- * @since 1.0
+ * @since 1.0.0
  */
 @Slf4j
 @Aspect
@@ -123,17 +125,24 @@ public class RateLimitAspect {
             }
         }
 
-        // 获取或创建用户的限流器（支持自定义配置）
-        UserLimiter limiter = getLimiter(doRateLimit, finalKey);
+        // 获取或创建限流器（支持自定义配置）
+        RateLimiter limiter = getLimiter(doRateLimit, finalKey);
+
+        // 获取限流器配置
+        int freq = limiter.getConfig().getFreq();
+        long interval = limiter.getConfig().getInterval();
+        int capacity = limiter.getConfig().getCapacity();
 
         // 判断是否允许请求
-        boolean allowed = limiter.allowRequest();
+        boolean allowed = limiter.allowRequest(finalKey, freq, interval, capacity);
 
         if (!allowed) {
             // 限流触发，抛出异常
             String message = doRateLimit.message();
-            log.warn("限流触发：finalKey={}, bizKey={}, method={}, scope={}",
-                    finalKey, bizKey, method.getName(), doRateLimit.scope());
+            RateLimitAlgorithm algorithm = limiter.getAlgorithm();
+            RateLimitStorage storage = limiter.getStorage();
+            log.warn("限流触发：finalKey={}, bizKey={}, method={}, scope={}, algorithm={}, storage={}",
+                    finalKey, bizKey, method.getName(), doRateLimit.scope(), algorithm, storage);
             throw new RateLimitException(bizKey, message);
         }
 
@@ -156,9 +165,9 @@ public class RateLimitAspect {
      *
      * @param doRateLimit 限流注解
      * @param finalKey 最终Key：可能是全限定类名.方法名:业务Key；也可能是直接业务Key
-     * @return 用户的限流器
+     * @return 限流器
      */
-    private UserLimiter getLimiter(DoRateLimit doRateLimit, String finalKey) {
+    private RateLimiter getLimiter(DoRateLimit doRateLimit, String finalKey) {
         int freq = doRateLimit.freq();
         long interval = doRateLimit.interval();
         boolean hasCustomConfig = freq > 0 && interval > 0;

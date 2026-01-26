@@ -1,6 +1,7 @@
 package cn.clazs.qratelimiter.autoconfigure;
 
 import cn.clazs.qratelimiter.aspect.RateLimitAspect;
+import cn.clazs.qratelimiter.factory.LimiterExecutorFactory;
 import cn.clazs.qratelimiter.properties.RateLimiterProperties;
 import cn.clazs.qratelimiter.registry.RateLimitRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +19,7 @@ import org.springframework.context.annotation.Configuration;
  * <p>自动配置的功能：
  * <ul>
  *     <li>自动注册 {@link RateLimiterProperties} 配置属性 Bean</li>
+ *     <li>自动注册 {@link LimiterExecutorFactory} 执行器工厂 Bean</li>
  *     <li>自动注册 {@link RateLimitRegistry} 限流器注册中心 Bean</li>
  *     <li>自动注册 {@link RateLimitAspect} AOP 切面 Bean</li>
  *     <li>支持通过 {@code clazs.ratelimiter.enabled=false} 关闭自动配置</li>
@@ -40,6 +42,8 @@ import org.springframework.context.annotation.Configuration;
  *     freq: 100
  *     interval: 60000
  *     capacity: 150
+ *     algorithm: sliding-window-log
+ *     storage: local
  *
  * // 3. 直接使用注解
  * @RestController
@@ -61,8 +65,9 @@ import org.springframework.context.annotation.Configuration;
  * </ul>
  *
  * @author clazs
- * @since 1.0
+ * @since 1.0.0
  * @see RateLimiterProperties
+ * @see LimiterExecutorFactory
  * @see RateLimitRegistry
  * @see RateLimitAspect
  */
@@ -77,9 +82,10 @@ public class RateLimiterAutoConfiguration {
      *
      * <p>职责：
      * <ul>
-     *     <li>管理所有用户的限流器实例（使用 Caffeine 缓存）</li>
+     *     <li>管理所有限流器实例（使用 Caffeine 缓存）</li>
      *     <li>自动清理不活跃的限流器（防止内存泄漏）</li>
      *     <li>支持方法级别的自定义配置</li>
+     *     <li>支持多种算法和存储方式</li>
      * </ul>
      *
      * <p>条件注解说明：
@@ -89,18 +95,20 @@ public class RateLimiterAutoConfiguration {
      * </ul>
      *
      * @param properties 从 application.yml 读取的配置属性
+     * @param executorFactory 执行器工厂
      * @return 限流器注册中心
      */
     @Bean
     @ConditionalOnMissingBean
-    public RateLimitRegistry rateLimitRegistry(RateLimiterProperties properties) {
+    public RateLimitRegistry rateLimitRegistry(RateLimiterProperties properties,
+                                              LimiterExecutorFactory executorFactory) {
         log.info("初始化 RateLimitRegistry Bean，配置：{}", properties.getSummary());
 
         // 验证配置
         properties.validate();
 
         // 创建注册中心
-        RateLimitRegistry registry = new RateLimitRegistry(properties);
+        RateLimitRegistry registry = new RateLimitRegistry(properties, executorFactory);
 
         log.info("RateLimitRegistry Bean 创建成功");
         return registry;

@@ -17,6 +17,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author clazs
  * @since 1.0
  */
+@Deprecated
 public class UserLimiter {
     /** 时间戳数组（环形缓冲区） */
     private final long[] timestamps;
