@@ -4,11 +4,10 @@
 
     <groupId>cn.clazs</groupId>
     <artifactId>qratelimiter-spring-boot-starter</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0.0</version>
     <packaging>jar</packaging>
 
     <name>qratelimiter-spring-boot-starter</name>
-    <description>High performance rate limiter starter based on RingBuffer and BinarySearch</description>
     <url>http://maven.apache.org</url>
 
     <properties>
