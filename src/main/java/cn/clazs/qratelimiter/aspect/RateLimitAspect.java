@@ -3,8 +3,6 @@ package cn.clazs.qratelimiter.aspect;
 import cn.clazs.qratelimiter.annotation.DoRateLimit;
 import cn.clazs.qratelimiter.annotation.RateLimitScope;
 import cn.clazs.qratelimiter.core.RateLimiter;
-import cn.clazs.qratelimiter.enums.RateLimitAlgorithm;
-import cn.clazs.qratelimiter.enums.RateLimitStorage;
 import cn.clazs.qratelimiter.exception.RateLimitException;
 import cn.clazs.qratelimiter.registry.RateLimitRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -139,11 +137,11 @@ public class RateLimitAspect {
         if (!allowed) {
             // 限流触发，抛出异常
             String message = doRateLimit.message();
-            RateLimitAlgorithm algorithm = limiter.getAlgorithm();
-            RateLimitStorage storage = limiter.getStorage();
-            log.warn("限流触发：finalKey={}, bizKey={}, method={}, scope={}, algorithm={}, storage={}",
-                    finalKey, bizKey, method.getName(), doRateLimit.scope(), algorithm, storage);
-            throw new RateLimitException(bizKey, message);
+            // RateLimitAlgorithm algorithm = limiter.getAlgorithm();
+            // RateLimitStorage storage = limiter.getStorage();
+            // log.warn("限流触发：finalKey={}, bizKey={}, method={}, scope={}, algorithm={}, storage={}",
+            //         finalKey, bizKey, method.getName(), doRateLimit.scope(), algorithm, storage);
+            throw new RateLimitException(finalKey, message);
         }
 
         // 允许通过，执行目标方法
