@@ -7,9 +7,8 @@ import cn.clazs.qratelimiter.executor.local.LocalLeakyBucketExecutor;
 import cn.clazs.qratelimiter.executor.local.LocalSlidingWindowCounterExecutor;
 import cn.clazs.qratelimiter.executor.local.LocalSlidingWindowLogExecutor;
 import cn.clazs.qratelimiter.executor.local.LocalTokenBucketExecutor;
+import cn.clazs.qratelimiter.properties.RateLimiterProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.Objects;
@@ -25,7 +24,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * @since 1.0.0
  */
 @Slf4j
-@Component
 public class LimiterExecutorFactory {
 
     /**
@@ -35,16 +33,48 @@ public class LimiterExecutorFactory {
 
     /**
      * Redis 模板（可选，仅在 storage=REDIS 时使用）
-     * 注意：这里使用 Object 是为了避免在没有 Redis 依赖时编译错误
-     * 实际使用时会转换为 StringRedisTemplate
      */
-    @Autowired(required = false)
     private Object redisTemplate;
 
     /**
      * Redis 键前缀配置
      */
-    private String redisKeyPrefix = "qratelimiter:";
+    private final String redisKeyPrefix;
+
+    /**
+     * 默认构造函数
+     */
+    public LimiterExecutorFactory() {
+        this("qratelimiter:");
+    }
+
+    /**
+     * 构造函数（通过配置初始化）
+     *
+     * @param properties 配置属性
+     */
+    public LimiterExecutorFactory(RateLimiterProperties properties) {
+        this(properties != null && properties.getRedis() != null
+                ? properties.getRedis().getKeyPrefix()
+                : "qratelimiter:");
+    }
+
+    /**
+     * 私有构造函数（设置key前缀）
+     */
+    private LimiterExecutorFactory(String redisKeyPrefix) {
+        this.redisKeyPrefix = redisKeyPrefix;
+    }
+
+    /**
+     * 设置 Redis 模板（由 Spring 自动调用）
+     *
+     * @param redisTemplate Redis 模板
+     */
+    public void setRedisTemplate(Object redisTemplate) {
+        this.redisTemplate = redisTemplate;
+        log.debug("Redis 模板已注入: {}", redisTemplate != null ? redisTemplate.getClass().getName() : "null");
+    }
 
     /**
      * 获取执行器实例（带缓存）

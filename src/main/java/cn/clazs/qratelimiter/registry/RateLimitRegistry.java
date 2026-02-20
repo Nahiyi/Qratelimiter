@@ -4,8 +4,6 @@ import cn.clazs.qratelimiter.core.DefaultRateLimiter;
 import cn.clazs.qratelimiter.core.LimiterExecutor;
 import cn.clazs.qratelimiter.core.RateLimiter;
 import cn.clazs.qratelimiter.core.RateLimiterConfig;
-import cn.clazs.qratelimiter.enums.RateLimitAlgorithm;
-import cn.clazs.qratelimiter.enums.RateLimitStorage;
 import cn.clazs.qratelimiter.factory.LimiterExecutorFactory;
 import cn.clazs.qratelimiter.properties.RateLimiterProperties;
 import com.github.benmanes.caffeine.cache.Cache;
