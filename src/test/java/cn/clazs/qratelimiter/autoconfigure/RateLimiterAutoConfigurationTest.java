@@ -1,9 +1,10 @@
 package cn.clazs.qratelimiter.autoconfigure;
 
 import cn.clazs.qratelimiter.aspect.RateLimitAspect;
+import cn.clazs.qratelimiter.core.RateLimiter;
+import cn.clazs.qratelimiter.factory.LimiterExecutorFactory;
 import cn.clazs.qratelimiter.properties.RateLimiterProperties;
 import cn.clazs.qratelimiter.registry.RateLimitRegistry;
-import cn.clazs.qratelimiter.value.UserLimiter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class RateLimiterAutoConfigurationTest {
 
     private RateLimiterProperties properties;
+    private LimiterExecutorFactory executorFactory;
     private RateLimitRegistry registry;
     private RateLimitAspect aspect;
 
@@ -44,8 +46,10 @@ class RateLimiterAutoConfigurationTest {
         properties.setCacheExpireAfterAccessMinutes(1L);
         properties.setCacheMaximumSize(100L);
 
+        executorFactory = new LimiterExecutorFactory();
+
         // 创建注册中心（模拟 Spring 的 @Bean）
-        registry = new RateLimitRegistry(properties);
+        registry = new RateLimitRegistry(properties, executorFactory);
 
         // 创建切面（模拟 Spring 的 @Bean）
         aspect = new RateLimitAspect(registry);
@@ -92,22 +96,22 @@ class RateLimiterAutoConfigurationTest {
     @DisplayName("功能集成：限流器应该正常工作")
     void testRateLimiterIntegration() {
         // 创建限流器（使用默认配置）
-        UserLimiter limiter = registry.getLimiter("test-user");
+        RateLimiter limiter = registry.getLimiter("test-user");
 
         // 前100次请求应该成功
         for (int i = 0; i < 100; i++) {
-            assertTrue(limiter.allowRequest(), "第" + (i + 1) + "次请求应该被允许");
+            assertTrue(limiter.allowRequest("test-user", 100, 60000L, 150), "第" + (i + 1) + "次请求应该被允许");
         }
 
         // 第101次请求应该被限流
-        assertFalse(limiter.allowRequest(), "第101次请求应该被限流");
+        assertFalse(limiter.allowRequest("test-user", 100, 60000L, 150), "第101次请求应该被限流");
     }
 
     @Test
     @DisplayName("功能集成：相同 Key 应该返回同一个限流器")
     void testSameKeySameLimiter() {
-        UserLimiter limiter1 = registry.getLimiter("user123");
-        UserLimiter limiter2 = registry.getLimiter("user123");
+        RateLimiter limiter1 = registry.getLimiter("user123");
+        RateLimiter limiter2 = registry.getLimiter("user123");
 
         assertSame(limiter1, limiter2, "相同 Key 应该返回同一个限流器实例");
     }
@@ -115,8 +119,8 @@ class RateLimiterAutoConfigurationTest {
     @Test
     @DisplayName("功能集成：不同 Key 应该返回不同的限流器")
     void testDifferentKeyDifferentLimiter() {
-        UserLimiter limiter1 = registry.getLimiter("userA");
-        UserLimiter limiter2 = registry.getLimiter("userB");
+        RateLimiter limiter1 = registry.getLimiter("userA");
+        RateLimiter limiter2 = registry.getLimiter("userB");
 
         assertNotSame(limiter1, limiter2, "不同 Key 应该返回不同的限流器实例");
     }

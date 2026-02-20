@@ -1,14 +1,18 @@
 package cn.clazs.qratelimiter.autoconfigure;
 
 import cn.clazs.qratelimiter.aspect.RateLimitAspect;
+import cn.clazs.qratelimiter.factory.LimiterExecutorFactory;
 import cn.clazs.qratelimiter.properties.RateLimiterProperties;
 import cn.clazs.qratelimiter.registry.RateLimitRegistry;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
  * 限流器自动配置类
@@ -18,6 +22,7 @@ import org.springframework.context.annotation.Configuration;
  * <p>自动配置的功能：
  * <ul>
  *     <li>自动注册 {@link RateLimiterProperties} 配置属性 Bean</li>
+ *     <li>自动注册 {@link LimiterExecutorFactory} 执行器工厂 Bean</li>
  *     <li>自动注册 {@link RateLimitRegistry} 限流器注册中心 Bean</li>
  *     <li>自动注册 {@link RateLimitAspect} AOP 切面 Bean</li>
  *     <li>支持通过 {@code clazs.ratelimiter.enabled=false} 关闭自动配置</li>
@@ -40,6 +45,8 @@ import org.springframework.context.annotation.Configuration;
  *     freq: 100
  *     interval: 60000
  *     capacity: 150
+ *     algorithm: sliding-window-log
+ *     storage: local
  *
  * // 3. 直接使用注解
  * @RestController
@@ -61,8 +68,9 @@ import org.springframework.context.annotation.Configuration;
  * </ul>
  *
  * @author clazs
- * @since 1.0
+ * @since 1.0.0
  * @see RateLimiterProperties
+ * @see LimiterExecutorFactory
  * @see RateLimitRegistry
  * @see RateLimitAspect
  */
@@ -73,13 +81,66 @@ import org.springframework.context.annotation.Configuration;
 public class RateLimiterAutoConfiguration {
 
     /**
+     * 注册限流执行器工厂 Bean
+     *
+     * <p>职责：
+     * <ul>
+     *     <li>根据算法类型和存储类型创建对应的执行器实例</li>
+     *     <li>缓存执行器实例，避免重复创建</li>
+     *     <li>支持 Local 和 Redis 两种存储方式</li>
+     *     <li>支持多种限流算法（滑动窗口日志、令牌桶、漏桶等）</li>
+     * </ul>
+     *
+     * <p>条件注解说明：
+     * <ul>
+     *     <li>只有当 Spring 容器中不存在 {@link LimiterExecutorFactory} Bean 时，才会创建</li>
+     *     <li>允许用户自定义 {@link LimiterExecutorFactory} Bean 覆盖默认实现</li>
+     * </ul>
+     *
+     * @param properties 从 application.yml 读取的配置属性
+     * @return 限流执行器工厂
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public LimiterExecutorFactory limiterExecutorFactory(RateLimiterProperties properties) {
+        log.info("初始化 LimiterExecutorFactory Bean，配置：{}", properties.getSummary());
+
+        // 创建工厂实例
+        LimiterExecutorFactory factory = new LimiterExecutorFactory(properties);
+
+        log.info("LimiterExecutorFactory Bean 创建成功");
+        return factory;
+    }
+
+    /**
+     * 注册 Redis 模板注入器（如果存在 Redis 依赖）
+     *
+     * <p>此方法会在 Redis 依赖存在时被调用，用于将 RedisTemplate 注入到工厂中
+     */
+    @Bean
+    @ConditionalOnClass(name = "org.springframework.data.redis.core.StringRedisTemplate")
+    public Object redisTemplateInitializer(
+            LimiterExecutorFactory factory,
+            ObjectProvider<StringRedisTemplate> redisTemplateProvider) {
+        StringRedisTemplate redisTemplate = redisTemplateProvider.getIfAvailable();
+        if (redisTemplate != null) {
+            factory.setRedisTemplate(redisTemplate);
+            log.info("Redis 模板已注入到限流器工厂");
+        } else {
+            log.info("未检测到 Redis 模板，限流器将仅支持本地存储");
+        }
+        return new Object(); // 返回一个标记对象，仅用于触发注入
+    }
+
+    /**
      * 注册限流器注册中心 Bean
      *
      * <p>职责：
      * <ul>
-     *     <li>管理所有用户的限流器实例（使用 Caffeine 缓存）</li>
+     *     <li>管理所有限流器实例（使用 Caffeine 缓存）</li>
      *     <li>自动清理不活跃的限流器（防止内存泄漏）</li>
      *     <li>支持方法级别的自定义配置</li>
+     *     <li>支持多种算法和存储方式</li>
      * </ul>
      *
      * <p>条件注解说明：
@@ -89,18 +150,20 @@ public class RateLimiterAutoConfiguration {
      * </ul>
      *
      * @param properties 从 application.yml 读取的配置属性
+     * @param executorFactory 执行器工厂
      * @return 限流器注册中心
      */
     @Bean
     @ConditionalOnMissingBean
-    public RateLimitRegistry rateLimitRegistry(RateLimiterProperties properties) {
+    public RateLimitRegistry rateLimitRegistry(RateLimiterProperties properties,
+                                               LimiterExecutorFactory executorFactory) {
         log.info("初始化 RateLimitRegistry Bean，配置：{}", properties.getSummary());
 
         // 验证配置
         properties.validate();
 
         // 创建注册中心
-        RateLimitRegistry registry = new RateLimitRegistry(properties);
+        RateLimitRegistry registry = new RateLimitRegistry(properties, executorFactory);
 
         log.info("RateLimitRegistry Bean 创建成功");
         return registry;
