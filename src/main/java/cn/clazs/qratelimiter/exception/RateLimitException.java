@@ -20,16 +20,12 @@ import lombok.Getter;
  * @since 1.0
  */
 public class RateLimitException extends RuntimeException {
-
     /**
-     * 限流的 Key（用户ID、API标识等）
+     * 限流的完整 Key 名称，附带类路径等
      */
     @Getter
     private final String limitKey;
 
-    /**
-     * @param limitKey 限流的 Key
-     */
     public RateLimitException(String limitKey) {
         super("访问过于频繁，请稍后再试");
         this.limitKey = limitKey;
@@ -37,7 +33,7 @@ public class RateLimitException extends RuntimeException {
 
     /**
      * @param limitKey 限流的 Key
-     * @param message  错误提示信息
+     * @param message 限流信息
      */
     public RateLimitException(String limitKey, String message) {
         super(message);

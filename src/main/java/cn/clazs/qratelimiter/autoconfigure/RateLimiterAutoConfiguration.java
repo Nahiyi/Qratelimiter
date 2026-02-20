@@ -1,6 +1,7 @@
 package cn.clazs.qratelimiter.autoconfigure;
 
 import cn.clazs.qratelimiter.aspect.RateLimitAspect;
+import cn.clazs.qratelimiter.exception.DefaultRateLimitExceptionHandler;
 import cn.clazs.qratelimiter.factory.LimiterExecutorFactory;
 import cn.clazs.qratelimiter.properties.RateLimiterProperties;
 import cn.clazs.qratelimiter.registry.RateLimitRegistry;
@@ -199,5 +200,36 @@ public class RateLimiterAutoConfiguration {
 
         log.info("RateLimitAspect Bean 创建成功");
         return aspect;
+    }
+
+    /**
+     * 注册默认限流异常处理器 Bean
+     *
+     * <p>职责：
+     * <ul>
+     *     <li>全局捕获 {@link cn.clazs.qratelimiter.exception.RateLimitException}</li>
+     *     <li>返回 HTTP 429 (Too Many Requests) 状态码</li>
+     *     <li>避免在日志中打印冗长的异常堆栈</li>
+     * </ul>
+     *
+     * <p>条件注解说明：
+     * <ul>
+     *     <li>只有在 Web 环境下才会创建</li>
+     *     <li>只有当 Spring 容器中不存在 {@link DefaultRateLimitExceptionHandler} Bean 时，才会创建</li>
+     *     <li>允许用户自定义异常处理器覆盖默认实现</li>
+     * </ul>
+     *
+     * @return 默认限流异常处理器
+     */
+    @Bean
+    @ConditionalOnClass(name = "org.springframework.web.servlet.DispatcherServlet")
+    @ConditionalOnMissingBean
+    public DefaultRateLimitExceptionHandler defaultRateLimitExceptionHandler() {
+        log.info("初始化 DefaultRateLimitExceptionHandler Bean");
+
+        DefaultRateLimitExceptionHandler handler = new DefaultRateLimitExceptionHandler();
+
+        log.info("DefaultRateLimitExceptionHandler Bean 创建成功");
+        return handler;
     }
 }

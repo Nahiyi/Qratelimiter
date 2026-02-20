@@ -38,7 +38,7 @@ public class DefaultRateLimiter implements RateLimiter {
         boolean allowed = executor.tryAcquire(key, freq, interval, capacity);
 
         if (!allowed) {
-            log.warn("限流触发: key={}, algorithm={}, storage={}",
+            log.debug("限流触发: key={}, algorithm={}, storage={}",
                     this.key, getAlgorithm(), getStorage());
         }
 
