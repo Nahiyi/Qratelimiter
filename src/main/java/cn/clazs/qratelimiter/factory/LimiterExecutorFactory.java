@@ -166,7 +166,8 @@ public class LimiterExecutorFactory {
 
                 case SLIDING_WINDOW_COUNTER:
                     return (LimiterExecutor) Class.forName("cn.clazs.qratelimiter.executor.redis.RedisSlidingWindowCounterExecutor")
-                            .getDeclaredConstructor().newInstance();
+                            .getConstructor(redisTemplateClass, String.class)
+                            .newInstance(redisTemplate, redisKeyPrefix);
 
                 case TOKEN_BUCKET:
                     return (LimiterExecutor) Class.forName("cn.clazs.qratelimiter.executor.redis.RedisTokenBucketExecutor")

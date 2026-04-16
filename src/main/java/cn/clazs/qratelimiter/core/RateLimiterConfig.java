@@ -26,17 +26,33 @@ public class RateLimiterConfig {
     private RateLimitStorage storage = RateLimitStorage.LOCAL;
 
     /**
-     * 时间窗口内最大请求次数
+     * 主限流额度参数：
+     * <ul>
+     *     <li>滑动窗口类算法：窗口内允许的最大请求次数</li>
+     *     <li>令牌桶：每个 interval 生成的令牌数</li>
+     *     <li>漏桶：每个 interval 泄放的请求数</li>
+     * </ul>
      */
     private int freq = 100;
 
     /**
-     * 时间窗口长度（毫秒）
+     * 时间基准参数（毫秒）：
+     * <ul>
+     *     <li>滑动窗口类算法：统计窗口长度</li>
+     *     <li>令牌桶：令牌补充周期</li>
+     *     <li>漏桶：桶内请求泄放周期</li>
+     * </ul>
      */
     private long interval = 60000L;
 
     /**
-     * 容量（某些算法需要，如滑动窗口日志算法的环形数组大小）
+     * 容量或精度参数：
+     * <ul>
+     *     <li>滑动窗口日志：环形缓冲区容量，必须 >= freq</li>
+     *     <li>滑动窗口计数器：时间分片数量</li>
+     *     <li>令牌桶：桶容量</li>
+     *     <li>漏桶：最大积压容量</li>
+     * </ul>
      */
     private int capacity = 150;
 
@@ -92,7 +108,7 @@ public class RateLimiterConfig {
             if (config.interval <= 0) {
                 throw new IllegalArgumentException("interval must be > 0");
             }
-            if (config.capacity < config.freq) {
+            if (config.algorithm.requiresCapacityAtLeastFreq() && config.capacity < config.freq) {
                 throw new IllegalArgumentException("capacity must be >= freq");
             }
             return config;

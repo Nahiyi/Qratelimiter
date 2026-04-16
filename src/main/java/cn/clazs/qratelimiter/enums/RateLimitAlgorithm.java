@@ -53,4 +53,14 @@ public enum RateLimitAlgorithm {
         }
         throw new IllegalArgumentException("Unknown algorithm code: " + code);
     }
+
+    /**
+     * 是否要求 capacity 必须大于等于 freq
+     *
+     * <p>当前只有滑动窗口日志算法依赖该约束来保证时间戳缓冲区能够容纳完整窗口内的请求数
+     * 其他算法中的 capacity 表示桶容量或统计精度，不应强制绑定到 freq
+     */
+    public boolean requiresCapacityAtLeastFreq() {
+        return this == SLIDING_WINDOW_LOG;
+    }
 }

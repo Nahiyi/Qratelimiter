@@ -22,9 +22,25 @@ public interface LimiterExecutor {
      * 尝试获取许可
      *
      * @param key 限流键（如：user:123, api:send_sms）
-     * @param freq 时间窗口内最大请求次数
-     * @param interval 时间窗口长度（毫秒）
-     * @param capacity 容量（某些算法需要）
+     * @param freq 主限流额度参数：
+     *             <ul>
+     *                 <li>滑动窗口类算法：窗口内允许的最大请求次数</li>
+     *                 <li>令牌桶：每个 interval 生成的令牌数</li>
+     *                 <li>漏桶：每个 interval 可泄出的请求数</li>
+     *             </ul>
+     * @param interval 时间基准参数（毫秒）：
+     *                 <ul>
+     *                     <li>滑动窗口类算法：统计窗口长度</li>
+     *                     <li>令牌桶：令牌补充周期</li>
+     *                     <li>漏桶：桶内请求泄放周期</li>
+     *                 </ul>
+     * @param capacity 容量或精度参数（某些算法需要）：
+     *                 <ul>
+     *                     <li>滑动窗口日志：环形缓冲区容量</li>
+     *                     <li>滑动窗口计数器：时间分片数量</li>
+     *                     <li>令牌桶：桶容量</li>
+     *                     <li>漏桶：最大积压容量</li>
+     *                 </ul>
      * @return true-允许通过, false-被限流
      */
     boolean tryAcquire(String key, int freq, long interval, int capacity);

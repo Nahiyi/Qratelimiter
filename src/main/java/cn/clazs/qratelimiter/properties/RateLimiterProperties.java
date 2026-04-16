@@ -36,18 +36,20 @@ public class RateLimiterProperties {
     private boolean enabled = true;
 
     /**
-     * 时间窗口内最大允许访问次数（默认：100次）
+     * 主限流额度参数（默认：100）
      */
     private int freq = 100;
 
     /**
-     * 时间窗口长度，单位：毫秒（默认：60000ms = 1分钟）
+     * 时间基准参数，单位：毫秒（默认：60000ms = 1分钟）
      */
     private long interval = 60000L;
 
     /**
-     * 数组容量（建议：freq * 1.5）
-     * 必须满足：capacity >= freq，否则会抛出异常
+     * 容量或精度参数（默认：150）
+     *
+     * <p>滑动窗口日志中建议使用 {@code freq * 1.5} 作为环形缓冲区容量；
+     * 在其他算法中则分别表示统计分片数、令牌桶容量或漏桶最大积压容量。
      */
     private int capacity = 150;
 
@@ -93,7 +95,7 @@ public class RateLimiterProperties {
         if (capacity <= 0) {
             throw new IllegalArgumentException("配置错误：capacity 必须大于 0，当前值：" + capacity);
         }
-        if (capacity < freq) {
+        if (algorithm != null && algorithm.requiresCapacityAtLeastFreq() && capacity < freq) {
             throw new IllegalArgumentException(
                     "配置错误：capacity 必须大于等于 freq，" +
                             "否则限流器无法正常工作！当前值：capacity=" + capacity + ", freq=" + freq
