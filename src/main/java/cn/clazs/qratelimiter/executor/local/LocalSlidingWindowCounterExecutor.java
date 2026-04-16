@@ -8,9 +8,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * 本地滑动窗口计数器执行器。
+ * 本地滑动窗口计数器执行器
  *
- * <p>该实现将一个完整统计窗口切分为多个时间分片，通过分片计数近似滑动窗口内的请求数。
+ * <p>该实现将一个完整统计窗口切分为多个时间分片，通过分片计数近似滑动窗口内的请求数
  * 对外仍使用统一的 {@code freq / interval / capacity} 参数语义：
  * <ul>
  *     <li>{@code freq}：完整统计窗口内允许的最大请求数</li>
@@ -20,7 +20,10 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class LocalSlidingWindowCounterExecutor implements LimiterExecutor {
 
+    /** 本地计数器状态默认 30 分钟无访问后清理，避免冷 key 长期占用内存 */
     private static final long DEFAULT_CACHE_EXPIRE_AFTER_ACCESS_MINUTES = 30;
+
+    /** 默认最多缓存 10_000 个 key 的计数窗口 */
     private static final long DEFAULT_CACHE_MAXIMUM_SIZE = 10_000;
 
     private static final class CounterWindow {
@@ -29,6 +32,7 @@ public class LocalSlidingWindowCounterExecutor implements LimiterExecutor {
         final int bucketCount;
         final long interval;
         final long bucketDuration;
+        // 仅用于处理本地时钟回拨，保证同一 key 的时间单调递增
         long lastRequestTime;
         final ReentrantLock lock = new ReentrantLock();
 
@@ -143,6 +147,7 @@ public class LocalSlidingWindowCounterExecutor implements LimiterExecutor {
                 continue;
             }
 
+            // 只按分片与滑动窗口的重叠比例折算计数，避免整片全量计入
             double overlapRatio = (double) (overlapEnd - overlapStart) / (double) bucketDuration;
             estimate += count * Math.min(1D, overlapRatio);
         }
@@ -154,6 +159,7 @@ public class LocalSlidingWindowCounterExecutor implements LimiterExecutor {
         long bucketStart = alignToBucketStart(currentTime, bucketDuration);
         int bucketIndex = resolveBucketIndex(bucketStart, window.bucketCount, bucketDuration);
 
+        // 环形复用分片槽位时，先用新的时间片起点覆盖旧分片，再重新计数
         if (window.bucketStartTimes[bucketIndex] != bucketStart) {
             window.bucketStartTimes[bucketIndex] = bucketStart;
             window.bucketCounts[bucketIndex] = 0;

@@ -6,16 +6,17 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.scripting.support.ResourceScriptSource;
 
-import java.util.Arrays;
-import java.util.List;
+import java.util.Collections;
 import java.util.Set;
 
 /**
- * Redis 滑动窗口计数器执行器。
+ * Redis 滑动窗口计数器执行器
  *
- * <p>使用两个连续整窗口计数近似滑动窗口，并通过加权的上一窗口计数估算当前滑动窗口内的请求数。
- * 对外仍使用统一的 {@code freq / interval / capacity} 参数语义，其中 {@code capacity} 作为本地实现的精度参数，
- * Redis 实现中保留该入参以维持公共接口一致，但不额外切分更多分片。
+ * <p>使用两个连续整窗口计数近似滑动窗口，并通过加权的上一窗口计数估算当前滑动窗口内的请求数
+ * Redis 侧统一使用服务器时间划分窗口，避免分布式场景下多个应用实例本地时钟不一致导致窗口错位
+ *
+ * <p>对外仍使用统一的 {@code freq / interval / capacity} 参数语义，其中 {@code capacity} 在 Redis 实现中
+ * 仅用于保持公共接口一致；当前实现采用标准双窗口近似，不再额外细分更多桶
  */
 public class RedisSlidingWindowCounterExecutor implements LimiterExecutor {
 
@@ -53,22 +54,13 @@ public class RedisSlidingWindowCounterExecutor implements LimiterExecutor {
             throw new IllegalArgumentException("Capacity must be positive, got: " + capacity);
         }
 
-        long currentTime = System.currentTimeMillis();
-        long currentWindowStart = alignWindowStart(currentTime, interval);
-        long previousWindowStart = currentWindowStart - interval;
-        long elapsedInCurrentWindow = currentTime - currentWindowStart;
-        double previousWindowWeight = 1D - ((double) elapsedInCurrentWindow / (double) interval);
         long expireMillis = Math.max(interval * 2L, interval + 60_000L);
-
-        List<String> keys = Arrays.asList(
-                buildRedisKey(key, currentWindowStart),
-                buildRedisKey(key, previousWindowStart)
-        );
+        String redisKeyPrefix = buildRedisKeyPrefix(key);
 
         Long result = redisTemplate.execute(
                 slidingWindowCounterScript,
-                keys,
-                String.valueOf(previousWindowWeight),
+                Collections.singletonList(redisKeyPrefix),
+                String.valueOf(interval),
                 String.valueOf(freq),
                 String.valueOf(expireMillis)
         );
@@ -85,17 +77,13 @@ public class RedisSlidingWindowCounterExecutor implements LimiterExecutor {
 
     @Override
     public void reset(String key) {
-        Set<String> keys = redisTemplate.keys(keyPrefix + "sliding_window_counter:" + key + ":*");
+        Set<String> keys = redisTemplate.keys(buildRedisKeyPrefix(key) + ":*");
         if (keys != null && !keys.isEmpty()) {
             redisTemplate.delete(keys);
         }
     }
 
-    private long alignWindowStart(long currentTime, long interval) {
-        return (currentTime / interval) * interval;
-    }
-
-    private String buildRedisKey(String key, long windowStart) {
-        return keyPrefix + "sliding_window_counter:" + key + ":" + windowStart;
+    private String buildRedisKeyPrefix(String key) {
+        return keyPrefix + "sliding_window_counter:" + key;
     }
 }
