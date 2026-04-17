@@ -4,21 +4,24 @@
 --
 -- 参数说明：
 -- KEYS[1]: 限流键 (如: qratelimiter:sliding_window_log:123)，如 userId=123
--- ARGV[1]: 窗口起始时间戳
+-- ARGV[1]: 窗口长度（毫秒）
 -- ARGV[2]: 频率限制
--- ARGV[3]: 当前时间戳（Score）
--- ARGV[4]: 过期时间（秒）
--- ARGV[5]: 唯一标识（解决同一毫秒并发问题）
+-- ARGV[3]: 过期时间（秒）
+-- ARGV[4]: 唯一标识（解决同一毫秒并发问题）
 
 local key = KEYS[1]
-local windowStart = tonumber(ARGV[1])
+local interval = tonumber(ARGV[1])
 local freq = tonumber(ARGV[2])
-local currentTime = tonumber(ARGV[3])
-local expireTime = tonumber(ARGV[4])
-local uniqueId = ARGV[5]
+local expireTime = tonumber(ARGV[3])
+local uniqueId = ARGV[4]
 
--- 1. 删除窗口外的数据（ZREMRANGEBYSCORE 移除 score < windowStart 的元素）
-redis.call('ZREMRANGEBYSCORE', key, 0, windowStart)
+-- 使用 Redis 服务器时间统一计算窗口边界，避免多实例本地时间偏差
+local timeParts = redis.call('TIME')
+local currentTime = math.floor((tonumber(timeParts[1]) * 1000) + (tonumber(timeParts[2]) / 1000))
+local windowStart = currentTime - interval
+
+-- 1. 删除窗口外的数据，只移除 score < windowStart 的元素
+redis.call('ZREMRANGEBYSCORE', key, 0, '(' .. windowStart)
 
 -- 2. 获取当前窗口内的请求数
 local count = redis.call('ZCARD', key)

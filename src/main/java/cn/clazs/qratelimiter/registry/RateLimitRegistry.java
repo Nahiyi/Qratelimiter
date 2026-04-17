@@ -173,8 +173,8 @@ public class RateLimitRegistry {
             log.debug("自动计算容量：key={}, freq={}, autoCapacity={}", key, freq, finalCapacity);
         }
 
-        // 最终校验：capacity 必须 >= freq
-        if (finalCapacity < freq) {
+        // 只有滑动窗口日志算法需要强约束 capacity >= freq
+        if (properties.getAlgorithm().requiresCapacityAtLeastFreq() && finalCapacity < freq) {
             throw new IllegalArgumentException("容量不能小于频率: capacity=" + finalCapacity + ", freq=" + freq);
         }
 

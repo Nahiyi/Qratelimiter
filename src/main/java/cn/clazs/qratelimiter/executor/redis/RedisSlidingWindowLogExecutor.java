@@ -34,11 +34,6 @@ public class RedisSlidingWindowLogExecutor implements LimiterExecutor {
     private static final String DEFAULT_KEY_PREFIX = "qratelimiter:";
 
     /**
-     * 默认过期时间（秒）
-     */
-    private static final int DEFAULT_EXPIRE_TIME_SECONDS = 3600;
-
-    /**
      * Lua 脚本路径
      */
     private static final String SCRIPT_PATH = "redis/sliding_window_log.lua";
@@ -71,26 +66,21 @@ public class RedisSlidingWindowLogExecutor implements LimiterExecutor {
     @Override
     public boolean tryAcquire(String key, int freq, long interval, int capacity) {
         String redisKey = buildRedisKey(key);
-        long currentTime = System.currentTimeMillis();
-        long windowStart = currentTime - interval;
 
         // 计算 Redis 过期时间（至少为 interval + 60秒，确保窗口外数据能被清理）
         int expireTimeSeconds = (int) ((interval / 1000) + 60);
 
-        // 生成唯一标识（解决同一毫秒并发问题）
-        // 使用 ThreadLocalRandom 性能更好，且碰撞概率极低（2^64分之一）
+        // 唯一标识只负责区分同一毫秒内的并发请求，时间戳由 Redis 服务器统一给出
         String uniqueId = Long.toString(ThreadLocalRandom.current().nextLong());
 
-        // 执行 Lua 脚本
         List<String> keys = Collections.singletonList(redisKey);
         Long result = redisTemplate.execute(
                 slidingWindowLogScript,
                 keys,
-                String.valueOf(windowStart),      // ARGV[1]: 窗口起始时间
+                String.valueOf(interval),         // ARGV[1]: 窗口长度（毫秒）
                 String.valueOf(freq),             // ARGV[2]: 频率限制
-                String.valueOf(currentTime),      // ARGV[3]: 当前时间戳（Score）
-                String.valueOf(expireTimeSeconds),// ARGV[4]: 过期时间
-                uniqueId                          // ARGV[5]: 唯一标识（并发不丢失）
+                String.valueOf(expireTimeSeconds),// ARGV[3]: 过期时间（秒）
+                uniqueId                          // ARGV[4]: 唯一标识（并发不丢失）
         );
 
         return result != null && result == 1L;
