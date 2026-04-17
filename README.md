@@ -6,7 +6,7 @@
 ![License](https://img.shields.io/badge/License-MIT-blue)
 ![Tests](https://img.shields.io/badge/Tests-100%25%20Passing-success)
 
-**一款轻量级、高性能、可拓展、开箱即用的 Spring Boot 限流器 Starter**（默认限流算法基于环形缓冲区 + 二分查找算法实现）
+**一款轻量级、高性能、可拓展、开箱即用的 Spring Boot 限流器 Starter**（已支持滑动窗口日志、滑动窗口计数器、令牌桶、漏桶四类算法）
 
 [特性](#特性) • [快速开始](#快速开始) • [配置说明](#配置说明) • [核心原理](#核心原理) • [性能测试](#性能测试) • [FAQ](#)
 
@@ -30,11 +30,21 @@
 
 ## 简介
 
-**QRateLimiter** 是一款专为 Spring Boot 应用设计的轻量级限流器，采用**滑动窗口日志算法**，基于**环形缓冲区 + 二分查找**实现。
+**QRateLimiter** 是一款专为 Spring Boot 应用设计的轻量级限流器 Starter。
+
+当前版本已经支持以下算法组合：
+
+- **滑动窗口日志（Sliding Window Log）**
+- **滑动窗口计数器（Sliding Window Counter）**
+- **令牌桶（Token Bucket）**
+- **漏桶（Leaky Bucket）**
+
+默认算法仍为**滑动窗口日志算法**，其本地实现基于**环形缓冲区 + 二分查找**。
 
 ### 核心特性
 
 - **桥接模式架构**：算法与存储解耦，支持灵活组合扩展
+- **多算法支持**：滑动窗口日志 / 滑动窗口计数器 / 令牌桶 / 漏桶
 - **多存储支持**：本地内存 / Redis 分布式存储
 - **极致性能**：环形缓冲区 + 二分查找，时间复杂度 O(log n)
 - **精准限流**：基于滑动窗口，支持毫秒级时间粒度
@@ -61,6 +71,7 @@
 ### 技术亮点
 
 - **桥接模式架构**：算法与存储彻底解耦，支持灵活组合
+- **多算法支持**：4 类限流算法统一接入，切换算法无需改注解结构
 - **多存储支持**：本地内存（单机）/ Redis（分布式）
 - **线程安全**：完全并发安全的限流算法
 - **轻量级占用**：基于 long 型数组作为核心数据结构
@@ -77,7 +88,6 @@
 ### Maven 依赖
 
 ```xml
-
 <dependency>
     <groupId>cn.clazs</groupId>
     <artifactId>qratelimiter-spring-boot-starter</artifactId>
@@ -93,10 +103,10 @@
 clazs:
   ratelimiter:
     enabled: true                    # 是否启用限流器
-    freq: 100                        # 时间窗口内最大请求次数
-    interval: 60000                  # 时间窗口长度（毫秒）= 1分钟
-    capacity: 150                    # 队列容量（建议 freq * 1.5）
-    algorithm: sliding-window-log    # 限流算法（目前仅支持 sliding-window-log）
+    freq: 100                        # 主限流额度参数
+    interval: 60000                  # 时间基准（毫秒）= 1分钟
+    capacity: 150                    # 容量/精度参数
+    algorithm: sliding-window-log    # 限流算法：sliding-window-log / sliding-window-counter / token-bucket / leaky-bucket
     storage: local                   # 存储类型：local=本地内存，redis=分布式
     cache-expire-after-access-minutes: 30   # 缓存过期时间
     cache-maximum-size: 1000                 # 最大缓存数量
@@ -168,10 +178,10 @@ public class GlobalExceptionHandler {
 | 配置项                                                   | 说明          | 默认值                  | 可选值                  | 建议                   |
 |-------------------------------------------------------|-------------|----------------------|----------------------|----------------------|
 | `clazs.ratelimiter.enabled`                           | 是否启用限流器     | `true`               | -                    | 生产环境开启               |
-| `clazs.ratelimiter.freq`                              | 时间窗口内最大请求次数 | `100`                | -                    | 根据业务调整               |
-| `clazs.ratelimiter.interval`                          | 时间窗口长度（毫秒）  | `60000`              | -                    | 根据业务调整               |
-| `clazs.ratelimiter.capacity`                          | 队列容量        | `150`                | -                    | 建议为 freq 的 1.5 倍     |
-| `clazs.ratelimiter.algorithm`                         | 限流算法        | `sliding-window-log` | `sliding-window-log` | 目前仅支持滑动窗口日志          |
+| `clazs.ratelimiter.freq`                              | 主限流额度参数    | `100`                | -                    | 根据算法和业务调整            |
+| `clazs.ratelimiter.interval`                          | 时间基准（毫秒）   | `60000`              | -                    | 根据算法和业务调整            |
+| `clazs.ratelimiter.capacity`                          | 容量/精度参数     | `150`                | -                    | 根据算法和业务调整            |
+| `clazs.ratelimiter.algorithm`                         | 限流算法        | `sliding-window-log` | `sliding-window-log`, `sliding-window-counter`, `token-bucket`, `leaky-bucket` | 默认推荐 `sliding-window-log` |
 | `clazs.ratelimiter.storage`                           | 存储类型        | `local`              | `local`, `redis`     | 单机用 local，分布式用 redis |
 | `clazs.ratelimiter.cache-expire-after-access-minutes` | 缓存过期时间（分钟）  | `1440`               | -                    | 根据业务调整               |
 | `clazs.ratelimiter.cache-maximum-size`                | 最大缓存数量      | `10000`              | -                    | 防止内存溢出               |
@@ -195,9 +205,21 @@ spring:
 | 参数         | 类型             | 是否必填 | 说明                  | 示例                      |
 |------------|----------------|------|---------------------|-------------------------|
 | `key`      | String         | 是    | 限流 Key（支持 SpEL 表达式） | `#userId`, `'constant'` |
-| `freq`     | int            | 否    | 时间窗口内最大请求次数         | `100`（默认使用全局配置）         |
-| `interval` | long           | 否    | 时间窗口长度（毫秒）          | `60000`（默认使用全局配置）       |
+| `freq`     | int            | 否    | 主限流额度参数             | `100`（默认使用全局配置）         |
+| `interval` | long           | 否    | 时间基准（毫秒）            | `60000`（默认使用全局配置）       |
+| `capacity` | int            | 否    | 容量/精度参数             | `150`（默认使用全局配置或自动计算）    |
 | `scope`    | RateLimitScope | 否    | 限流隔离级别              | `METHOD`（默认）/ `GLOBAL`  |
+
+### 统一参数语义
+
+为了让使用者只理解一套注解参数，QRateLimiter 在不同算法下统一沿用 `freq / interval / capacity`：
+
+| 算法 | `freq` | `interval` | `capacity` |
+|------|--------|------------|------------|
+| 滑动窗口日志 | 窗口内最大请求数 | 滑动窗口长度 | 环形缓冲区容量 |
+| 滑动窗口计数器 | 窗口内最大请求数 | 完整统计窗口长度 | 时间分片数量 |
+| 令牌桶 | 每个周期补充的令牌数 | 补充周期 | 桶容量 |
+| 漏桶 | 每个周期泄放的请求数 | 泄放周期 | 最大积压容量 |
 
 ### SpEL 表达式支持
 
@@ -279,9 +301,20 @@ public void methodD(Long userId) {}
 
 ## 核心原理
 
-### 滑动窗口日志算法
+### 限流算法体系
 
-QRateLimiter 默认采用**滑动窗口日志算法**，算法维度支持拓展（developing...），支持两种存储实现：
+QRateLimiter 当前已完整支持以下 4 类算法，且每类算法都提供 `Local` 与 `Redis` 两种存储实现：
+
+| 算法 | Local | Redis | 特点 |
+|------|-------|-------|------|
+| 滑动窗口日志 | 完整实现 | 完整实现 | 精准、直观、默认推荐 |
+| 滑动窗口计数器 | 完整实现 | 完整实现 | 内存更轻，采用近似估算 |
+| 令牌桶 | 完整实现 | 完整实现 | 适合允许突发流量的场景 |
+| 漏桶 | 完整实现 | 完整实现 | 适合平滑输出和削峰 |
+
+#### 1. 滑动窗口日志算法
+
+默认算法仍为**滑动窗口日志算法**，支持本地与 Redis 两种实现：
 
 #### 1. 本地存储实现（环形缓冲区 + 二分查找）
 
@@ -339,6 +372,31 @@ Member: 时间戳:唯一ID（解决并发唯一性问题）
 - **原子性**：Lua 脚本保证 Redis 操作原子性
 - **分布式**：支持多实例共享限流状态
 - **并发安全**：时间戳:唯一ID 解决同一毫秒并发问题
+
+#### 3. 滑动窗口计数器算法
+
+滑动窗口计数器通过“当前窗口 + 上一窗口加权”的方式近似计算滑动窗口内的请求量。
+
+- **优点**：状态更轻、实现简单、适合高频计数场景
+- **代价**：相较滑动窗口日志属于近似算法，不是逐请求精确记录
+- **Local**：基于时间分片计数
+- **Redis**：基于双窗口计数 + Lua 脚本 + Redis 服务器时间
+
+#### 4. 令牌桶算法
+
+令牌桶以固定速率补充令牌，请求到来时消耗令牌。
+
+- **优点**：允许一定程度的突发流量
+- **适合**：网关入口、接口峰值削峰但允许短时 burst 的场景
+- **Local / Redis**：都基于“补充令牌 -> 尝试消费”的流程
+
+#### 5. 漏桶算法
+
+漏桶以固定速率泄放桶内积压的请求，请求到来时先尝试入桶。
+
+- **优点**：输出速率更稳定，天然适合平滑下游压力
+- **适合**：对下游系统敏感、需要严格平滑吞吐的场景
+- **Local / Redis**：都基于“先泄放 -> 再尝试入桶”的流程
 
 ---
 
@@ -505,14 +563,13 @@ freq: 10
 interval: 3600000  # 每小时 10 次
 ```
 
-**capacity 的默认计算：**
+**capacity 的选择原则：**
 
 ```
-capacity = freq * 1.5
-
-# 例如：
-freq = 100
-capacity = 100 * 1.5 = 150
+滑动窗口日志：建议 capacity = freq * 1.5
+滑动窗口计数器：capacity = 时间分片数，常见可取 10 / 20 / 60
+令牌桶：capacity = 允许的最大突发量
+漏桶：capacity = 允许的最大积压量
 ```
 
 ### 2. 时钟回拨会怎样？
@@ -554,33 +611,29 @@ spring:
 
 **实现原理**：
 
-> 以默认滑动窗口日志算法为例
+- 滑动窗口日志：Redis ZSet + Lua 脚本
+- 滑动窗口计数器：双窗口计数 + Lua 脚本
+- 令牌桶：Hash 状态 + Lua 脚本
+- 漏桶：Hash 状态 + Lua 脚本
 
-- 使用 Redis ZSet 存储请求时间戳
-- Lua 脚本保证操作的原子性
-- 多个应用实例共享同一个限流状态
+所有 Redis 算法实现都以 **Lua 脚本 + Redis 服务器时间** 为核心，保证：
+
+- 状态更新原子化
+- 多实例共享限流状态
+- 避免不同应用节点时钟不一致带来的窗口或速率偏差
 
 ---
 
 ## TODOs
 
-### v1.1.0 规划 - 完善剩余算法实现
+### 当前实现状态
 
-#### 已实现
-
-| 算法类型                        | Local 存储 | Redis 存储 |
-|-----------------------------|----------|----------|
-| 滑动窗口日志 (Sliding Window Log) | 完整实现     | 完整实现     |
-
-#### 待实现
-
-| 算法类型                             | Local 存储 | Redis 存储 | 优先级 |
-|----------------------------------|----------|----------|-----|
-| 滑动窗口计数器 (Sliding Window Counter) | TODO     | TODO     | 1   |
-| 令牌桶 (Token Bucket)               | TODO     | TODO     | 2   |
-| 漏桶 (Leaky Bucket)                | TODO     | TODO     | 3   |
-
-**说明**：框架已定义好接口 `LimiterExecutor` 和工厂 `LimiterExecutorFactory`，只需实现对应执行器类即可。
+| 算法类型 | Local 存储 | Redis 存储 |
+|----------|----------|----------|
+| 滑动窗口日志 (Sliding Window Log) | 完整实现 | 完整实现 |
+| 滑动窗口计数器 (Sliding Window Counter) | 完整实现 | 完整实现 |
+| 令牌桶 (Token Bucket) | 完整实现 | 完整实现 |
+| 漏桶 (Leaky Bucket) | 完整实现 | 完整实现 |
 
 ---
 
@@ -605,8 +658,6 @@ spring:
 ---
 
 **项目灵感来源：力扣“多段有序区间内的二分查找算法（或红蓝染色法）”，持续打磨扩展中...🤗😸**
-
-~~更多的地方可能是为了学习的验证以及一个简易的限流器开发的兴趣、封装为starter的真实流程等等……~~
 
 **若对您的学习、开发有帮助，请给个 ⭐️ Star 支持一下！**
 
