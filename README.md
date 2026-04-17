@@ -91,9 +91,23 @@
 <dependency>
     <groupId>cn.clazs</groupId>
     <artifactId>qratelimiter-spring-boot-starter</artifactId>
-    <version>1.1.1</version>
+    <version>1.2.0</version>
 </dependency>
 ```
+
+用户侧仍然只需要引入 `qratelimiter-spring-boot-starter`，无需直接依赖 `autoconfigure` 模块。
+
+### 项目模块结构
+
+当前仓库内部已拆分为标准双模块结构：
+
+- `qratelimiter-spring-boot-autoconfigure`
+- `qratelimiter-spring-boot-starter`
+
+其中：
+
+- `starter` 作为对外推荐引入的入口依赖
+- `autoconfigure` 承载自动装配、核心实现、Lua 脚本与测试代码
 
 ### 1. 添加配置
 
