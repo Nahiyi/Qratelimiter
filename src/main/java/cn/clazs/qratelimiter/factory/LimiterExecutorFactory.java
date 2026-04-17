@@ -171,7 +171,8 @@ public class LimiterExecutorFactory {
 
                 case TOKEN_BUCKET:
                     return (LimiterExecutor) Class.forName("cn.clazs.qratelimiter.executor.redis.RedisTokenBucketExecutor")
-                            .getDeclaredConstructor().newInstance();
+                            .getConstructor(redisTemplateClass, String.class)
+                            .newInstance(redisTemplate, redisKeyPrefix);
 
                 case LEAKY_BUCKET:
                     return (LimiterExecutor) Class.forName("cn.clazs.qratelimiter.executor.redis.RedisLeakyBucketExecutor")
