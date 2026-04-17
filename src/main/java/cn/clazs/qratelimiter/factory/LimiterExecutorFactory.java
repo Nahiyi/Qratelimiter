@@ -176,7 +176,8 @@ public class LimiterExecutorFactory {
 
                 case LEAKY_BUCKET:
                     return (LimiterExecutor) Class.forName("cn.clazs.qratelimiter.executor.redis.RedisLeakyBucketExecutor")
-                            .getDeclaredConstructor().newInstance();
+                            .getConstructor(redisTemplateClass, String.class)
+                            .newInstance(redisTemplate, redisKeyPrefix);
 
                 default:
                     throw new UnsupportedOperationException("Unsupported algorithm: " + algorithm);
