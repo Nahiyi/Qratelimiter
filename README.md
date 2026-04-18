@@ -85,7 +85,17 @@
 
 ## 快速开始
 
-### Maven 依赖
+### 当前推荐使用方式
+
+由于项目**暂时还没有发布到 Maven 中央仓库**，目前推荐先拉取源码并安装到本地 Maven 仓库：
+
+```bash
+git clone https://github.com/Nahiyi/Qratelimiter.git
+cd Qratelimiter
+mvn install
+```
+
+安装完成后，再在你的业务项目中引入：
 
 ```xml
 <dependency>
