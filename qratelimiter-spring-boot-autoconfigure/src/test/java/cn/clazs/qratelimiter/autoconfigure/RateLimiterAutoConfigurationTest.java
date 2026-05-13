@@ -8,6 +8,10 @@ import cn.clazs.qratelimiter.registry.RateLimitRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.Bean;
+
+import java.lang.reflect.Method;
+import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -153,5 +157,16 @@ class RateLimiterAutoConfigurationTest {
         // 在实际运行时，Spring Boot 会自动加载这个文件
         assertNotNull(getClass().getClassLoader().getResource("META-INF/spring.factories"),
                 "META-INF/spring.factories 文件应该存在");
+    }
+
+    @Test
+    @DisplayName("注解检查：自动配置不应注册裸 Object 标记 Bean")
+    void testAutoConfigurationDoesNotExposeRawObjectBean() {
+        boolean hasRawObjectBean = Arrays.stream(RateLimiterAutoConfiguration.class.getDeclaredMethods())
+                .filter(method -> method.isAnnotationPresent(Bean.class))
+                .map(Method::getReturnType)
+                .anyMatch(Object.class::equals);
+
+        assertFalse(hasRawObjectBean, "自动配置不应通过返回 new Object() 的标记 Bean 触发副作用");
     }
 }
