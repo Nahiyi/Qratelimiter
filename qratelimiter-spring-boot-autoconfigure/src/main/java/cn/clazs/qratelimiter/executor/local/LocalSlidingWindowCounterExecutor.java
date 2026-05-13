@@ -168,7 +168,7 @@ public class LocalSlidingWindowCounterExecutor implements LimiterExecutor {
 
     private int resolveBucketIndex(long bucketStart, int bucketCount, long bucketDuration) {
         long bucketSlot = bucketStart / bucketDuration;
-        return (int) Math.floorMod(bucketSlot, bucketCount);
+        return (int) Math.floorMod(bucketSlot, (long) bucketCount);
     }
 
     private long alignToBucketStart(long currentTime, long bucketDuration) {

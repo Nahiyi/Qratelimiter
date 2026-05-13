@@ -1,0 +1,4 @@
+clazs:
+  ratelimiter:
+    algorithm: sliding-window-counter
+    capacity: 10
