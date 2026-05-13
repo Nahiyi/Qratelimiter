@@ -51,7 +51,7 @@ public class DefaultRateLimitExceptionHandler {
         );
 
         return ResponseEntity
-                .status(HttpStatus.TOO_MANY_REQUESTS)
+                .status(HttpStatus.TOO_MANY_REQUESTS.value())
                 .body(response);
     }
 
