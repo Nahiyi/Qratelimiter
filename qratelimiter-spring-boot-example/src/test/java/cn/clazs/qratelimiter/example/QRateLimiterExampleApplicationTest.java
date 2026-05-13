@@ -62,6 +62,18 @@ class QRateLimiterExampleApplicationTest {
     }
 
     @Test
+    void spelConstantEndpointUsesUnquotedConstantAsLimitKey() throws Exception {
+        mockMvc.perform(get("/examples/spel/constant"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scenario").value("spel-constant"))
+                .andExpect(jsonPath("$.key").value("constant_api"));
+
+        mockMvc.perform(get("/examples/spel/constant"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.limitKey").value(containsString(":constant_api")));
+    }
+
+    @Test
     void methodScopeKeepsTwoMethodsIndependent() throws Exception {
         String userId = uniqueKey("method");
 

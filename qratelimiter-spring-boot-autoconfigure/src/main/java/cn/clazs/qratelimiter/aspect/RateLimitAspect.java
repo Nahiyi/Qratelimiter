@@ -205,8 +205,8 @@ public class RateLimitAspect {
      * @return 解析后的 Key
      */
     private String parseKey(String keyExpression, Method method, Object[] args, String[] parameterNames) {
-        // 如果表达式不包含 #，则认为是常量字符串，直接返回
-        if (!keyExpression.contains("#")) {
+        // 普通常量字符串允许不写 SpEL 引号；SpEL 字符串字面量需要解析掉外层引号
+        if (!keyExpression.contains("#") && !isStringLiteralExpression(keyExpression)) {
             return keyExpression;
         }
 
@@ -229,5 +229,11 @@ public class RateLimitAspect {
         }
 
         return value.toString();
+    }
+
+    private boolean isStringLiteralExpression(String keyExpression) {
+        return keyExpression.length() >= 2
+                && keyExpression.startsWith("'")
+                && keyExpression.endsWith("'");
     }
 }
