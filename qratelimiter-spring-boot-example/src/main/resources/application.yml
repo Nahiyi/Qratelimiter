@@ -1,0 +1,23 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: qratelimiter-example
+
+clazs:
+  ratelimiter:
+    enabled: true
+    freq: 2
+    interval: 60000
+    capacity: 3
+    algorithm: sliding-window-log
+    storage: local
+    cache-expire-after-access-minutes: 30
+    cache-maximum-size: 10000
+    redis:
+      key-prefix: "qratelimiter:example:"
+
+logging:
+  level:
+    cn.clazs.qratelimiter: INFO

@@ -8,6 +8,16 @@ import cn.clazs.qratelimiter.registry.RateLimitRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.Bean;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -153,5 +163,37 @@ class RateLimiterAutoConfigurationTest {
         // 在实际运行时，Spring Boot 会自动加载这个文件
         assertNotNull(getClass().getClassLoader().getResource("META-INF/spring.factories"),
                 "META-INF/spring.factories 文件应该存在");
+    }
+
+    @Test
+    @DisplayName("注解检查：Spring Boot 3 自动配置导入文件应该注册当前配置类")
+    void testSpringBoot3AutoConfigurationImportsExists() throws IOException {
+        String importsPath = "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports";
+
+        assertNotNull(getClass().getClassLoader().getResource(importsPath),
+                importsPath + " 文件应该存在");
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                getClass().getClassLoader().getResourceAsStream(importsPath), StandardCharsets.UTF_8))) {
+            Set<String> autoConfigurations = reader.lines()
+                    .map(String::trim)
+                    .filter(line -> !line.isEmpty())
+                    .filter(line -> !line.startsWith("#"))
+                    .collect(Collectors.toSet());
+
+            assertTrue(autoConfigurations.contains(RateLimiterAutoConfiguration.class.getName()),
+                    "Spring Boot 3 自动配置导入文件应该包含 RateLimiterAutoConfiguration");
+        }
+    }
+
+    @Test
+    @DisplayName("注解检查：自动配置不应注册裸 Object 标记 Bean")
+    void testAutoConfigurationDoesNotExposeRawObjectBean() {
+        boolean hasRawObjectBean = Arrays.stream(RateLimiterAutoConfiguration.class.getDeclaredMethods())
+                .filter(method -> method.isAnnotationPresent(Bean.class))
+                .map(Method::getReturnType)
+                .anyMatch(Object.class::equals);
+
+        assertFalse(hasRawObjectBean, "自动配置不应通过返回 new Object() 的标记 Bean 触发副作用");
     }
 }

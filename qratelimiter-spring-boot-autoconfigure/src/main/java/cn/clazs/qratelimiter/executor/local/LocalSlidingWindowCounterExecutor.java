@@ -141,15 +141,13 @@ public class LocalSlidingWindowCounterExecutor implements LimiterExecutor {
                 continue;
             }
 
-            long overlapStart = Math.max(bucketStart, windowStart);
-            long overlapEnd = Math.min(bucketEnd, currentTime + 1);
-            if (overlapEnd <= overlapStart) {
+            if (bucketStart >= windowStart) {
+                estimate += count;
                 continue;
             }
 
-            // 只按分片与滑动窗口的重叠比例折算计数，避免整片全量计入
-            double overlapRatio = (double) (overlapEnd - overlapStart) / (double) bucketDuration;
-            estimate += count * Math.min(1D, overlapRatio);
+            double overlapRatio = (double) (bucketEnd - windowStart) / (double) bucketDuration;
+            estimate += count * Math.min(1D, Math.max(0D, overlapRatio));
         }
 
         return estimate;
@@ -170,7 +168,7 @@ public class LocalSlidingWindowCounterExecutor implements LimiterExecutor {
 
     private int resolveBucketIndex(long bucketStart, int bucketCount, long bucketDuration) {
         long bucketSlot = bucketStart / bucketDuration;
-        return (int) Math.floorMod(bucketSlot, bucketCount);
+        return (int) Math.floorMod(bucketSlot, (long) bucketCount);
     }
 
     private long alignToBucketStart(long currentTime, long bucketDuration) {

@@ -46,11 +46,12 @@ public class DefaultRateLimitExceptionHandler {
         ErrorResponse response = new ErrorResponse(
                 HttpStatus.TOO_MANY_REQUESTS.value(),
                 "TOO_MANY_REQUESTS",
-                e.getMessage()
+                e.getMessage(),
+                e.getLimitKey()
         );
 
         return ResponseEntity
-                .status(HttpStatus.TOO_MANY_REQUESTS)
+                .status(HttpStatus.TOO_MANY_REQUESTS.value())
                 .body(response);
     }
 
@@ -64,10 +65,11 @@ public class DefaultRateLimitExceptionHandler {
         private String message;
         private String limitKey;
 
-        public ErrorResponse(int status, String error, String message) {
+        public ErrorResponse(int status, String error, String message, String limitKey) {
             this.status = status;
             this.error = error;
             this.message = message;
+            this.limitKey = limitKey;
         }
 
         @Override
@@ -76,6 +78,7 @@ public class DefaultRateLimitExceptionHandler {
                     "status=" + status +
                     ", error='" + error + '\'' +
                     ", message='" + message + '\'' +
+                    ", limitKey='" + limitKey + '\'' +
                     '}';
         }
     }

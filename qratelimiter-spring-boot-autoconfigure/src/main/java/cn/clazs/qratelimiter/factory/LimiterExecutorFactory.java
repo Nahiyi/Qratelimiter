@@ -42,10 +42,20 @@ public class LimiterExecutorFactory {
     private final String redisKeyPrefix;
 
     /**
+     * 本地执行器状态缓存过期时间（分钟）
+     */
+    private final long localCacheExpireAfterAccessMinutes;
+
+    /**
+     * 本地执行器状态缓存最大容量
+     */
+    private final long localCacheMaximumSize;
+
+    /**
      * 默认构造函数
      */
     public LimiterExecutorFactory() {
-        this("qratelimiter:");
+        this("qratelimiter:", 30L, 10_000L);
     }
 
     /**
@@ -56,14 +66,20 @@ public class LimiterExecutorFactory {
     public LimiterExecutorFactory(RateLimiterProperties properties) {
         this(properties != null && properties.getRedis() != null
                 ? properties.getRedis().getKeyPrefix()
-                : "qratelimiter:");
+                : "qratelimiter:",
+                properties != null ? properties.getCacheExpireAfterAccessMinutes() : 30L,
+                properties != null ? properties.getCacheMaximumSize() : 10_000L);
     }
 
     /**
      * 私有构造函数（设置key前缀）
      */
-    private LimiterExecutorFactory(String redisKeyPrefix) {
+    private LimiterExecutorFactory(String redisKeyPrefix,
+                                   long localCacheExpireAfterAccessMinutes,
+                                   long localCacheMaximumSize) {
         this.redisKeyPrefix = redisKeyPrefix;
+        this.localCacheExpireAfterAccessMinutes = localCacheExpireAfterAccessMinutes;
+        this.localCacheMaximumSize = localCacheMaximumSize;
     }
 
     /**
@@ -124,16 +140,16 @@ public class LimiterExecutorFactory {
     private LimiterExecutor createLocalExecutor(RateLimitAlgorithm algorithm) {
         switch (algorithm) {
             case SLIDING_WINDOW_LOG:
-                return new LocalSlidingWindowLogExecutor();
+                return new LocalSlidingWindowLogExecutor(localCacheExpireAfterAccessMinutes, localCacheMaximumSize);
 
             case SLIDING_WINDOW_COUNTER:
-                return new LocalSlidingWindowCounterExecutor();
+                return new LocalSlidingWindowCounterExecutor(localCacheExpireAfterAccessMinutes, localCacheMaximumSize);
 
             case TOKEN_BUCKET:
-                return new LocalTokenBucketExecutor();
+                return new LocalTokenBucketExecutor(localCacheExpireAfterAccessMinutes, localCacheMaximumSize);
 
             case LEAKY_BUCKET:
-                return new LocalLeakyBucketExecutor();
+                return new LocalLeakyBucketExecutor(localCacheExpireAfterAccessMinutes, localCacheMaximumSize);
 
             default:
                 throw new UnsupportedOperationException("Unsupported algorithm: " + algorithm);
