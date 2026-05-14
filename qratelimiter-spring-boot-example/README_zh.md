@@ -9,6 +9,7 @@
 示例包含以下端点：
 
 - 基于 key 的基础限流。
+- 编程式 `RateLimiterTemplate` 使用方式。
 - 通过路径变量、请求参数、请求体和常量提取的 SpEL key。
 - `METHOD` 作用域限流。
 - `GLOBAL` 作用域限流。
@@ -38,7 +39,8 @@
 - Maven 3.8 或更高版本。
 - JDK 8，用于默认的 Spring Boot 2 构建。
 - JDK 17，用于 Spring Boot 3 profile。
-- 当使用 `redis` profile 或运行完整示例测试矩阵时，需要本地 Redis（`localhost:6379`）。
+- 当使用 `redis` profile 或运行完整示例测试矩阵时，默认使用 `localhost:6379`。
+  如需连接其他 Redis 实例，可以设置 `QRL_REDIS_HOST` / `QRL_REDIS_PORT`。
 
 运行下方命令之前，请先将 `JAVA_HOME` 设置为期望使用的 JDK。
 安装命令在仓库根目录执行，运行示例应用的命令在 example 模块目录执行。
@@ -103,6 +105,23 @@ curl http://localhost:8080/examples/basic/users/u1001
 ```
 
 第三次请求会返回 HTTP 429，因为该端点对同一用户 key 每分钟只允许两次请求。
+
+## Template API 示例
+
+端点：
+
+```text
+GET /examples/template/users/{userId}
+```
+
+这个端点演示编程式 API。控制器不使用 `@DoRateLimit`，而是注入
+`RateLimiterTemplate` 并显式调用：
+
+```java
+boolean allowed = rateLimiterTemplate.tryAcquire("template:" + userId, 2, 60000L, 3);
+```
+
+这也是普通 Java / Maven 项目在不依赖 Spring Boot 注解生态时可以使用的核心 API。
 
 ## SpEL Key 示例
 
@@ -184,7 +203,8 @@ curl http://localhost:8080/examples/algorithms/current/demo
 
 ## Redis 存储
 
-本地启动 Redis（端口 `6379`），然后运行：
+启动 Redis（默认端口 `6379`），或通过 `QRL_REDIS_HOST` / `QRL_REDIS_PORT`
+指定其他地址，然后运行：
 
 ```powershell
 mvn org.springframework.boot:spring-boot-maven-plugin:2.7.18:run `

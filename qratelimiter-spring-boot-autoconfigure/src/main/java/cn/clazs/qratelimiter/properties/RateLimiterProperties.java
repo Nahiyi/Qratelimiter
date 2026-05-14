@@ -1,5 +1,6 @@
 package cn.clazs.qratelimiter.properties;
 
+import cn.clazs.qratelimiter.core.RateLimiterOptions;
 import cn.clazs.qratelimiter.enums.RateLimitAlgorithm;
 import cn.clazs.qratelimiter.enums.RateLimitStorage;
 import lombok.Data;
@@ -125,6 +126,21 @@ public class RateLimiterProperties {
                 enabled, freq, interval, capacity, algorithm, storage,
                 cacheExpireAfterAccessMinutes, cacheMaximumSize
         );
+    }
+
+    /**
+     * Convert Spring Boot configuration properties to the Spring-independent core options.
+     */
+    public RateLimiterOptions toOptions() {
+        return RateLimiterOptions.builder()
+                .freq(freq)
+                .interval(interval)
+                .capacity(capacity)
+                .algorithm(algorithm)
+                .storage(storage)
+                .cacheExpireAfterAccessMinutes(cacheExpireAfterAccessMinutes)
+                .cacheMaximumSize(cacheMaximumSize)
+                .build();
     }
 
     /**

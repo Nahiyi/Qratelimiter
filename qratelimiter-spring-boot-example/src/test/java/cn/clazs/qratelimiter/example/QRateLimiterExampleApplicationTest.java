@@ -123,6 +123,24 @@ class QRateLimiterExampleApplicationTest {
                 .andExpect(jsonPath("$.storage").value("LOCAL"));
     }
 
+    @Test
+    void templateEndpointUsesProgrammaticRateLimiterTemplate() throws Exception {
+        String userId = uniqueKey("template");
+
+        mockMvc.perform(get("/examples/template/users/{userId}", userId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scenario").value("template"))
+                .andExpect(jsonPath("$.key").value("template:" + userId));
+
+        mockMvc.perform(get("/examples/template/users/{userId}", userId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/examples/template/users/{userId}", userId))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.message").value("template demo rate limited"))
+                .andExpect(jsonPath("$.limitKey").value("template:" + userId));
+    }
+
     private String uniqueKey(String prefix) {
         return prefix + "-" + UUID.randomUUID();
     }

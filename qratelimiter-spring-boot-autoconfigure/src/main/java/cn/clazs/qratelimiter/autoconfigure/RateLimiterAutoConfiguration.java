@@ -1,7 +1,14 @@
 package cn.clazs.qratelimiter.autoconfigure;
 
 import cn.clazs.qratelimiter.aspect.RateLimitAspect;
+import cn.clazs.qratelimiter.core.RateLimiterTemplate;
+import cn.clazs.qratelimiter.enums.RateLimitAlgorithm;
+import cn.clazs.qratelimiter.enums.RateLimitStorage;
 import cn.clazs.qratelimiter.exception.DefaultRateLimitExceptionHandler;
+import cn.clazs.qratelimiter.executor.redis.RedisLeakyBucketExecutor;
+import cn.clazs.qratelimiter.executor.redis.RedisSlidingWindowCounterExecutor;
+import cn.clazs.qratelimiter.executor.redis.RedisSlidingWindowLogExecutor;
+import cn.clazs.qratelimiter.executor.redis.RedisTokenBucketExecutor;
 import cn.clazs.qratelimiter.factory.LimiterExecutorFactory;
 import cn.clazs.qratelimiter.properties.RateLimiterProperties;
 import cn.clazs.qratelimiter.registry.RateLimitRegistry;
@@ -107,8 +114,7 @@ public class RateLimiterAutoConfiguration {
     public LimiterExecutorFactory limiterExecutorFactory(RateLimiterProperties properties) {
         log.info("初始化 LimiterExecutorFactory Bean，配置：{}", properties.getSummary());
 
-        // 创建工厂实例
-        LimiterExecutorFactory factory = new LimiterExecutorFactory(properties);
+        LimiterExecutorFactory factory = new LimiterExecutorFactory(properties.toOptions());
 
         log.info("LimiterExecutorFactory Bean 创建成功");
         return factory;
@@ -123,11 +129,20 @@ public class RateLimiterAutoConfiguration {
     @ConditionalOnClass(name = "org.springframework.data.redis.core.StringRedisTemplate")
     public SmartInitializingSingleton redisTemplateInitializer(
             LimiterExecutorFactory factory,
+            RateLimiterProperties properties,
             ObjectProvider<StringRedisTemplate> redisTemplateProvider) {
         return () -> {
             StringRedisTemplate redisTemplate = redisTemplateProvider.getIfAvailable();
             if (redisTemplate != null) {
-                factory.setRedisTemplate(redisTemplate);
+                String keyPrefix = properties.getRedis().getKeyPrefix();
+                factory.registerProvider(RateLimitAlgorithm.SLIDING_WINDOW_LOG, RateLimitStorage.REDIS,
+                        () -> new RedisSlidingWindowLogExecutor(redisTemplate, keyPrefix));
+                factory.registerProvider(RateLimitAlgorithm.SLIDING_WINDOW_COUNTER, RateLimitStorage.REDIS,
+                        () -> new RedisSlidingWindowCounterExecutor(redisTemplate, keyPrefix));
+                factory.registerProvider(RateLimitAlgorithm.TOKEN_BUCKET, RateLimitStorage.REDIS,
+                        () -> new RedisTokenBucketExecutor(redisTemplate, keyPrefix));
+                factory.registerProvider(RateLimitAlgorithm.LEAKY_BUCKET, RateLimitStorage.REDIS,
+                        () -> new RedisLeakyBucketExecutor(redisTemplate, keyPrefix));
                 log.info("Redis 模板已注入到限流器工厂");
             } else {
                 log.info("未检测到 Redis 模板，限流器将仅支持本地存储");
@@ -166,10 +181,16 @@ public class RateLimiterAutoConfiguration {
         properties.validate();
 
         // 创建注册中心
-        RateLimitRegistry registry = new RateLimitRegistry(properties, executorFactory);
+        RateLimitRegistry registry = new RateLimitRegistry(properties.toOptions(), executorFactory);
 
         log.info("RateLimitRegistry Bean 创建成功");
         return registry;
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public RateLimiterTemplate rateLimiterTemplate(RateLimitRegistry registry) {
+        return new RateLimiterTemplate(registry);
     }
 
     /**

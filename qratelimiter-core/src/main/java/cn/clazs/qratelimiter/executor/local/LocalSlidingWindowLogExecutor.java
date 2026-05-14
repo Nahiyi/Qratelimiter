@@ -3,7 +3,6 @@ package cn.clazs.qratelimiter.executor.local;
 import cn.clazs.qratelimiter.core.LimiterExecutor;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -19,7 +18,6 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author clazs
  * @since 1.0.0
  */
-@Slf4j
 public class LocalSlidingWindowLogExecutor implements LimiterExecutor {
 
     /**

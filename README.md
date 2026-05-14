@@ -6,7 +6,7 @@
 ![License](https://img.shields.io/badge/License-MIT-blue)
 ![Tests](https://img.shields.io/badge/Tests-100%25%20Passing-success)
 
-**一款轻量级、高性能、可拓展、开箱即用的 Spring Boot 限流器 Starter**（支持 Spring Boot 2 / 3，已覆盖滑动窗口日志、滑动窗口计数器、令牌桶、漏桶四类算法）
+**一款轻量级、高性能、可拓展的限流器**。既支持普通 Java / Maven 项目通过 core API 编程式使用，也支持 Spring Boot 2 / 3 通过 starter 注解式开箱即用。
 
 [特性](#特性) • [快速开始](#快速开始) • [配置说明](#配置说明) • [示例模块](#示例模块) • [核心原理](#核心原理) • [FAQ](#)
 
@@ -31,14 +31,15 @@
 
 ## 简介
 
-**QRateLimiter** 是一款专为 Spring Boot 应用设计的轻量级限流器 Starter。
+**QRateLimiter** 是一款轻量级限流器，核心能力已经拆分为不依赖 Spring Boot 的 `qratelimiter-core`，Spring Boot 用户仍然可以通过 starter 获得注解式开箱即用体验。
 
-当前 release 版本：`1.3.0`
+当前 release 版本：`1.4.0`
 
 当前版本已验证：
 
 - Spring Boot `2.7.18` + JDK 8
 - Spring Boot `3.2.x` + JDK 17
+- 普通 Java / Maven 项目的 core API 编程式使用
 - Local / Redis 两种存储
 - 4 种算法 × 2 种存储的完整组合
 
@@ -54,6 +55,8 @@
 ### 核心特性
 
 - **桥接模式架构**：算法与存储解耦，支持灵活组合扩展
+- **独立 core 模块**：核心限流 API 与本地算法不依赖 Spring Boot
+- **编程式 Template API**：通过 `RateLimiterTemplate` 显式执行限流判断
 - **多算法支持**：滑动窗口日志 / 滑动窗口计数器 / 令牌桶 / 漏桶
 - **多存储支持**：本地内存 / Redis 分布式存储
 - **Spring Boot 2 / 3 兼容**：同时支持 `spring.factories` 与 `AutoConfiguration.imports`
@@ -113,11 +116,21 @@ mvn install
 <dependency>
     <groupId>cn.clazs</groupId>
     <artifactId>qratelimiter-spring-boot-starter</artifactId>
-    <version>1.3.0</version>
+    <version>1.4.0</version>
 </dependency>
 ```
 
 用户侧仍然只需要引入 `qratelimiter-spring-boot-starter`，无需直接依赖 `autoconfigure` 模块。
+
+如果不是 Spring Boot 项目，也可以只引入 core 模块并使用编程式 API：
+
+```xml
+<dependency>
+    <groupId>cn.clazs</groupId>
+    <artifactId>qratelimiter-core</artifactId>
+    <version>1.4.0</version>
+</dependency>
+```
 
 ### 项目模块结构
 
@@ -126,14 +139,16 @@ mvn install
 - `qratelimiter-spring-boot-autoconfigure`
 - `qratelimiter-spring-boot-starter`
 - `qratelimiter-spring-boot-example`
+- `qratelimiter-core`
 
 其中：
 
 - `starter` 作为对外推荐引入的入口依赖
-- `autoconfigure` 承载自动装配、核心实现、Lua 脚本与测试代码
+- `core` 承载不依赖 Spring Boot 的核心 API、注册中心和本地算法实现
+- `autoconfigure` 承载自动装配、注解 AOP、异常处理、Redis 执行器和 Lua 脚本
 - `example` 提供可运行的 Spring Boot 示例应用，用于演示配置、注解、算法与存储组合
 
-后续计划继续拆分 `core` 与独立测试模块，让限流核心能力脱离 Spring Boot 也可被普通 Java 项目复用。
+后续计划继续拆分独立测试模块，让 core、Local、Redis、Boot2、Boot3 与组合矩阵拥有更独立的质量兜底。
 
 ### 1. 添加配置
 
@@ -186,6 +201,40 @@ public class UserController {
     @DoRateLimit(key = "'global_api'", freq = 20, interval = 60000)
     public String globalRateLimit() {
         return "全局限流接口";
+    }
+}
+```
+
+### 2.1 使用 Template API
+
+普通 Java / Maven 项目可以直接使用 `RateLimiterTemplate`：
+
+```java
+RateLimiterTemplate template = RateLimiterTemplate.localDefaults();
+
+if (!template.tryAcquire("user:" + userId, 10, 60000L, 15)) {
+    throw new IllegalStateException("too many requests");
+}
+```
+
+Spring Boot 项目中也会自动注册 `RateLimiterTemplate` Bean，复杂场景可以注入后显式调用：
+
+```java
+@RestController
+public class UserController {
+
+    private final RateLimiterTemplate rateLimiterTemplate;
+
+    public UserController(RateLimiterTemplate rateLimiterTemplate) {
+        this.rateLimiterTemplate = rateLimiterTemplate;
+    }
+
+    @GetMapping("/manual")
+    public String manualLimit(String userId) {
+        if (!rateLimiterTemplate.tryAcquire("manual:" + userId, 10, 60000L, 15)) {
+            throw new RateLimitException("manual:" + userId);
+        }
+        return "ok";
     }
 }
 ```
@@ -730,10 +779,10 @@ spring:
 - [x] **Example 示例模块**
     - 已提供 `qratelimiter-spring-boot-example`
     - 可演示 4 种算法、2 种存储、SpEL key、作用域与 Redis 配置
-- [ ] **模块边界进一步标准化**
-    - 拆分 `qratelimiter-core`，让核心限流能力脱离 Spring Boot 也可复用
-    - 保持 `spring-boot-autoconfigure` 专注自动配置、AOP、Properties 与 Web 异常处理
-    - 让 `starter` 作为更薄的依赖聚合入口
+- [x] **模块边界进一步标准化**
+    - 已拆分 `qratelimiter-core`，让核心限流能力脱离 Spring Boot 也可复用
+    - `spring-boot-autoconfigure` 专注自动配置、AOP、Properties、Redis 集成与 Web 异常处理
+    - `starter` 作为更薄的依赖聚合入口
 - [ ] **独立测试模块**
     - 增加专门的测试 / 集成测试模块，系统覆盖 core、Local、Redis、Boot2、Boot3 与组合矩阵
     - 将 example 保持为演示模块，测试模块承担质量兜底职责

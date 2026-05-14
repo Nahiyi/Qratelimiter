@@ -38,7 +38,7 @@ class RateLimitAspectTest {
         executorFactory = new LimiterExecutorFactory();
 
         // 创建注册中心
-        registry = new RateLimitRegistry(properties, executorFactory);
+        registry = new RateLimitRegistry(properties.toOptions(), executorFactory);
 
         // 创建切面
         aspect = new RateLimitAspect(registry);

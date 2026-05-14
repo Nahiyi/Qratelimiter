@@ -5,7 +5,7 @@
 
     <groupId>cn.clazs</groupId>
     <artifactId>qratelimiter-parent</artifactId>
-    <version>1.3.0</version>
+    <version>1.4.0</version>
     <packaging>pom</packaging>
 
     <name>qratelimiter-parent</name>
@@ -13,6 +13,7 @@
     <url>http://maven.apache.org</url>
 
     <modules>
+        <module>qratelimiter-core</module>
         <module>qratelimiter-spring-boot-autoconfigure</module>
         <module>qratelimiter-spring-boot-starter</module>
         <module>qratelimiter-spring-boot-example</module>
@@ -40,6 +41,11 @@
                 <groupId>com.github.ben-manes.caffeine</groupId>
                 <artifactId>caffeine</artifactId>
                 <version>${caffeine.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>cn.clazs</groupId>
+                <artifactId>qratelimiter-core</artifactId>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework.boot</groupId>
