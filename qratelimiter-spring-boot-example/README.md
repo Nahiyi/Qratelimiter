@@ -2,8 +2,8 @@
 
 This module is a runnable Spring Boot example for QRateLimiter. It demonstrates
 the starter in a real Web application, including annotation-based rate limiting,
-SpEL keys, method/global scopes, local storage, Redis storage, and all supported
-algorithms.
+programmatic `RateLimiterTemplate` usage, SpEL keys, method/global scopes, local
+storage, Redis storage, and all supported algorithms.
 
 Documentation:
 

@@ -1,8 +1,8 @@
 package cn.clazs.qratelimiter.registry;
 
 import cn.clazs.qratelimiter.core.RateLimiter;
+import cn.clazs.qratelimiter.core.RateLimiterOptions;
 import cn.clazs.qratelimiter.factory.LimiterExecutorFactory;
-import cn.clazs.qratelimiter.properties.RateLimiterProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,21 +20,22 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("RateLimitRegistry 注册中心测试")
 class RateLimitRegistryTest {
 
-    private RateLimiterProperties properties;
+    private RateLimiterOptions options;
     private LimiterExecutorFactory executorFactory;
     private RateLimitRegistry registry;
 
     @BeforeEach
     void setUp() {
-        properties = new RateLimiterProperties();
-        properties.setFreq(10);
-        properties.setInterval(1000L);
-        properties.setCapacity(15);
-        properties.setCacheExpireAfterAccessMinutes(1L);  // 1分钟过期
-        properties.setCacheMaximumSize(100L);
+        options = RateLimiterOptions.builder()
+                .freq(10)
+                .interval(1000L)
+                .capacity(15)
+                .cacheExpireAfterAccessMinutes(1L)
+                .cacheMaximumSize(100L)
+                .build();
 
         executorFactory = new LimiterExecutorFactory();
-        registry = new RateLimitRegistry(properties, executorFactory);
+        registry = new RateLimitRegistry(options, executorFactory);
     }
 
     // ==================== 基本功能测试 ====================
@@ -48,6 +49,31 @@ class RateLimitRegistryTest {
         assertEquals(15, limiter.getConfig().getCapacity(), "容量应该从配置读取");
         assertEquals(10, limiter.getConfig().getFreq(), "频率应该从配置读取");
         assertEquals(1000L, limiter.getConfig().getInterval(), "时间窗口应该从配置读取");
+    }
+
+    @Test
+    @DisplayName("基本功能：构造后不应受外部 options 修改影响")
+    void testConstructorDefensivelyCopiesOptions() {
+        RateLimiterOptions mutableOptions = RateLimiterOptions.builder()
+                .freq(2)
+                .interval(1000L)
+                .capacity(3)
+                .cacheExpireAfterAccessMinutes(1L)
+                .cacheMaximumSize(100L)
+                .build();
+
+        RateLimitRegistry testRegistry = new RateLimitRegistry(mutableOptions, executorFactory);
+
+        mutableOptions.setFreq(50);
+        mutableOptions.setInterval(60000L);
+        mutableOptions.setCapacity(75);
+        testRegistry.getOptions().setFreq(80);
+
+        RateLimiter limiter = testRegistry.getLimiter("defensive-copy");
+
+        assertEquals(2, limiter.getConfig().getFreq(), "频率应该使用构造时的快照");
+        assertEquals(1000L, limiter.getConfig().getInterval(), "窗口应该使用构造时的快照");
+        assertEquals(3, limiter.getConfig().getCapacity(), "容量应该使用构造时的快照");
     }
 
     @Test
@@ -113,10 +139,10 @@ class RateLimitRegistryTest {
     @Test
     @DisplayName("参数验证：拒绝非法配置")
     void testRejectInvalidProperties() {
-        RateLimiterProperties invalidProps = new RateLimiterProperties();
-        invalidProps.setFreq(0);  // 非法
+        RateLimiterOptions invalidOptions = RateLimiterOptions.defaults();
+        invalidOptions.setFreq(0);
 
-        assertThrows(IllegalArgumentException.class, () -> new RateLimitRegistry(invalidProps, null));
+        assertThrows(IllegalArgumentException.class, () -> new RateLimitRegistry(invalidOptions, executorFactory));
     }
 
     @Test
@@ -152,14 +178,15 @@ class RateLimitRegistryTest {
     @DisplayName("缓存管理：清空所有限流器")
     void testClearAll() {
         // 创建独立的 registry，并设置更大的缓存避免自动清理干扰
-        RateLimiterProperties testProps = new RateLimiterProperties();
-        testProps.setFreq(10);
-        testProps.setInterval(1000L);
-        testProps.setCapacity(15);
-        testProps.setCacheExpireAfterAccessMinutes(1L);
-        testProps.setCacheMaximumSize(1000L);
+        RateLimiterOptions testOptions = RateLimiterOptions.builder()
+                .freq(10)
+                .interval(1000L)
+                .capacity(15)
+                .cacheExpireAfterAccessMinutes(1L)
+                .cacheMaximumSize(1000L)
+                .build();
 
-        RateLimitRegistry testRegistry = new RateLimitRegistry(testProps, executorFactory);
+        RateLimitRegistry testRegistry = new RateLimitRegistry(testOptions, executorFactory);
         testRegistry.getLimiter("user1");
         testRegistry.getLimiter("user2");
         testRegistry.getLimiter("user3");
@@ -292,28 +319,30 @@ class RateLimitRegistryTest {
     @Test
     @DisplayName("边界条件：最小合法配置")
     void testMinimumValidConfiguration() {
-        RateLimiterProperties minProps = new RateLimiterProperties();
-        minProps.setFreq(1);
-        minProps.setInterval(1L);
-        minProps.setCapacity(1);
-        minProps.setCacheExpireAfterAccessMinutes(1L);
-        minProps.setCacheMaximumSize(1L);
+        RateLimiterOptions minOptions = RateLimiterOptions.builder()
+                .freq(1)
+                .interval(1L)
+                .capacity(1)
+                .cacheExpireAfterAccessMinutes(1L)
+                .cacheMaximumSize(1L)
+                .build();
 
-        assertDoesNotThrow(() -> new RateLimitRegistry(minProps, executorFactory));
+        assertDoesNotThrow(() -> new RateLimitRegistry(minOptions, executorFactory));
     }
 
     @Test
     @DisplayName("边界条件：大量用户")
     void testLargeNumberOfUsers() {
         // 使用独立的 registry，并设置更大的缓存限制
-        RateLimiterProperties largeProps = new RateLimiterProperties();
-        largeProps.setFreq(10);
-        largeProps.setInterval(1000L);
-        largeProps.setCapacity(15);
-        largeProps.setCacheExpireAfterAccessMinutes(1L);
-        largeProps.setCacheMaximumSize(1000L);  // 设置足够大的缓存
+        RateLimiterOptions largeOptions = RateLimiterOptions.builder()
+                .freq(10)
+                .interval(1000L)
+                .capacity(15)
+                .cacheExpireAfterAccessMinutes(1L)
+                .cacheMaximumSize(1000L)
+                .build();
 
-        RateLimitRegistry largeRegistry = new RateLimitRegistry(largeProps, executorFactory);
+        RateLimitRegistry largeRegistry = new RateLimitRegistry(largeOptions, executorFactory);
         int userCount = 50;  // 测试50个用户（避免触发自动清理）
 
         for (int i = 0; i < userCount; i++) {

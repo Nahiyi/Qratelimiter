@@ -10,17 +10,21 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>qratelimiter-spring-boot-starter</artifactId>
+    <artifactId>qratelimiter-core</artifactId>
     <packaging>jar</packaging>
 
-    <name>qratelimiter-spring-boot-starter</name>
-    <description>Starter dependency entrypoint for QRateLimiter</description>
+    <name>qratelimiter-core</name>
+    <description>Spring-independent core API and local executors for QRateLimiter</description>
 
     <dependencies>
         <dependency>
-            <groupId>cn.clazs</groupId>
-            <artifactId>qratelimiter-spring-boot-autoconfigure</artifactId>
-            <version>${project.version}</version>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

@@ -2,6 +2,7 @@ package cn.clazs.qratelimiter.autoconfigure;
 
 import cn.clazs.qratelimiter.aspect.RateLimitAspect;
 import cn.clazs.qratelimiter.core.RateLimiter;
+import cn.clazs.qratelimiter.core.RateLimiterTemplate;
 import cn.clazs.qratelimiter.factory.LimiterExecutorFactory;
 import cn.clazs.qratelimiter.properties.RateLimiterProperties;
 import cn.clazs.qratelimiter.registry.RateLimitRegistry;
@@ -59,7 +60,7 @@ class RateLimiterAutoConfigurationTest {
         executorFactory = new LimiterExecutorFactory();
 
         // 创建注册中心（模拟 Spring 的 @Bean）
-        registry = new RateLimitRegistry(properties, executorFactory);
+        registry = new RateLimitRegistry(properties.toOptions(), executorFactory);
 
         // 创建切面（模拟 Spring 的 @Bean）
         aspect = new RateLimitAspect(registry);
@@ -98,6 +99,17 @@ class RateLimiterAutoConfigurationTest {
     @DisplayName("Bean 创建：RateLimitAspect 应该正确创建")
     void testAspectCreation() {
         assertNotNull(aspect, "RateLimitAspect 应该被成功创建");
+    }
+
+    @Test
+    @DisplayName("Bean 创建：RateLimiterTemplate 应该正确创建")
+    void testTemplateCreation() {
+        RateLimiterAutoConfiguration configuration = new RateLimiterAutoConfiguration();
+
+        RateLimiterTemplate template = configuration.rateLimiterTemplate(registry);
+
+        assertNotNull(template, "RateLimiterTemplate 应该被成功创建");
+        assertSame(registry, template.getRegistry(), "Template 应该复用自动配置创建的注册中心");
     }
 
     // ==================== 功能集成测试 ====================

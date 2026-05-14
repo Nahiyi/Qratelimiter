@@ -1,9 +1,9 @@
 package cn.clazs.qratelimiter.factory;
 
 import cn.clazs.qratelimiter.core.LimiterExecutor;
+import cn.clazs.qratelimiter.core.RateLimiterOptions;
 import cn.clazs.qratelimiter.enums.RateLimitAlgorithm;
 import cn.clazs.qratelimiter.enums.RateLimitStorage;
-import cn.clazs.qratelimiter.properties.RateLimiterProperties;
 import com.github.benmanes.caffeine.cache.Cache;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,6 +12,7 @@ import java.lang.reflect.Field;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("LimiterExecutorFactory 测试")
@@ -20,11 +21,12 @@ class LimiterExecutorFactoryTest {
     @Test
     @DisplayName("本地执行器应继承用户配置的缓存生命周期")
     void localExecutorsShouldUseConfiguredCachePolicy() throws IllegalAccessException {
-        RateLimiterProperties properties = new RateLimiterProperties();
-        properties.setCacheExpireAfterAccessMinutes(2L);
-        properties.setCacheMaximumSize(7L);
+        RateLimiterOptions options = RateLimiterOptions.builder()
+                .cacheExpireAfterAccessMinutes(2L)
+                .cacheMaximumSize(7L)
+                .build();
 
-        LimiterExecutorFactory factory = new LimiterExecutorFactory(properties);
+        LimiterExecutorFactory factory = new LimiterExecutorFactory(options);
 
         for (RateLimitAlgorithm algorithm : RateLimitAlgorithm.values()) {
             LimiterExecutor executor = factory.getExecutor(algorithm, RateLimitStorage.LOCAL);
@@ -36,6 +38,15 @@ class LimiterExecutorFactoryTest {
                             .getExpiresAfter(TimeUnit.MINUTES),
                     algorithm + " should use configured expire-after-access minutes");
         }
+    }
+
+    @Test
+    @DisplayName("非法 options 应该在创建工厂时被拒绝")
+    void invalidOptionsShouldBeRejectedWhenCreatingFactory() {
+        RateLimiterOptions options = RateLimiterOptions.defaults();
+        options.setCacheMaximumSize(0L);
+
+        assertThrows(IllegalArgumentException.class, () -> new LimiterExecutorFactory(options));
     }
 
     private Cache<?, ?> findExecutorCache(LimiterExecutor executor) throws IllegalAccessException {

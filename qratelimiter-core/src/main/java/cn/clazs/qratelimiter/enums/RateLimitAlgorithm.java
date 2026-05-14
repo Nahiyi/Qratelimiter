@@ -1,21 +1,15 @@
 package cn.clazs.qratelimiter.enums;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-
 /**
  * 限流算法类型枚举
  *
  * @author clazs
  * @since 1.0.0
  */
-@Getter
-@AllArgsConstructor
 public enum RateLimitAlgorithm {
 
     /**
      * 滑动窗口日志算法（基于环形数组 + 二分查找）
-     * 当前版本的核心实现算法
      */
     SLIDING_WINDOW_LOG("sliding-window-log", "滑动窗口日志", 1),
 
@@ -38,13 +32,24 @@ public enum RateLimitAlgorithm {
     private final String description;
     private final int priority;
 
-    /**
-     * 根据代码获取枚举值
-     *
-     * @param code 算法代码
-     * @return 对应的算法枚举
-     * @throws IllegalArgumentException 如果代码不存在
-     */
+    RateLimitAlgorithm(String code, String description, int priority) {
+        this.code = code;
+        this.description = description;
+        this.priority = priority;
+    }
+
+    public String getCode() {
+        return code;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public int getPriority() {
+        return priority;
+    }
+
     public static RateLimitAlgorithm fromCode(String code) {
         for (RateLimitAlgorithm algorithm : values()) {
             if (algorithm.code.equalsIgnoreCase(code)) {
@@ -55,10 +60,7 @@ public enum RateLimitAlgorithm {
     }
 
     /**
-     * 是否要求 capacity 必须大于等于 freq
-     *
-     * <p>当前只有滑动窗口日志算法依赖该约束来保证时间戳缓冲区能够容纳完整窗口内的请求数
-     * 其他算法中的 capacity 表示桶容量或统计精度，不应强制绑定到 freq
+     * 是否要求 capacity 必须大于等于 freq。
      */
     public boolean requiresCapacityAtLeastFreq() {
         return this == SLIDING_WINDOW_LOG;
