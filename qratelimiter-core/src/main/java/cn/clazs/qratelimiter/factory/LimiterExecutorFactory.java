@@ -35,7 +35,8 @@ public class LimiterExecutorFactory {
     }
 
     public LimiterExecutorFactory(RateLimiterOptions options) {
-        RateLimiterOptions safeOptions = options == null ? RateLimiterOptions.defaults() : options;
+        RateLimiterOptions safeOptions = RateLimiterOptions.copyOf(options);
+        safeOptions.validate();
         this.localCacheExpireAfterAccessMinutes = safeOptions.getCacheExpireAfterAccessMinutes();
         this.localCacheMaximumSize = safeOptions.getCacheMaximumSize();
         registerLocalProviders();

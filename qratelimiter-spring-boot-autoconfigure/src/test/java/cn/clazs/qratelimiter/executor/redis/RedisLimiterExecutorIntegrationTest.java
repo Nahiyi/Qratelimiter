@@ -24,10 +24,13 @@ class RedisLimiterExecutorIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        connectionFactory = new LettuceConnectionFactory("localhost", 6379);
+        String host = redisHost();
+        int port = redisPort();
+        connectionFactory = new LettuceConnectionFactory(host, port);
         connectionFactory.afterPropertiesSet();
 
-        Assumptions.assumeTrue(isRedisAvailable(connectionFactory), "localhost:6379 Redis 不可用，跳过 Redis 集成测试");
+        Assumptions.assumeTrue(isRedisAvailable(connectionFactory),
+                host + ":" + port + " Redis 不可用，跳过 Redis 集成测试");
 
         redisTemplate = new StringRedisTemplate(connectionFactory);
         redisTemplate.afterPropertiesSet();
@@ -91,5 +94,33 @@ class RedisLimiterExecutorIntegrationTest {
         } catch (Exception ignored) {
             return false;
         }
+    }
+
+    private String redisHost() {
+        return firstNonBlank(
+                System.getProperty("qratelimiter.redis.host"),
+                System.getenv("QRL_REDIS_HOST"),
+                "localhost");
+    }
+
+    private int redisPort() {
+        String value = firstNonBlank(
+                System.getProperty("qratelimiter.redis.port"),
+                System.getenv("QRL_REDIS_PORT"),
+                "6379");
+        try {
+            return Integer.parseInt(value);
+        } catch (Exception ignored) {
+            return 6379;
+        }
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.trim().isEmpty()) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 }

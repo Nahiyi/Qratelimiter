@@ -44,8 +44,9 @@ verification directions:
 - Maven 3.8 or newer.
 - JDK 8 for the default Spring Boot 2 build.
 - JDK 17 for the Spring Boot 3 profile.
-- Redis on `localhost:6379` when using the `redis` profile or running the full
-  example test matrix.
+- Redis on `localhost:6379` by default when using the `redis` profile or running
+  the full example test matrix. Set `QRL_REDIS_HOST` / `QRL_REDIS_PORT` to use a
+  different Redis instance.
 
 Set `JAVA_HOME` to the JDK you want to use before running the commands below.
 Run the install command from the repository root, then run the example from the
@@ -212,7 +213,8 @@ curl http://localhost:8080/examples/algorithms/current/demo
 
 ## Redis Storage
 
-Start Redis locally on port `6379`, then run:
+Start Redis on port `6379`, or set `QRL_REDIS_HOST` / `QRL_REDIS_PORT` for a
+different address, then run:
 
 ```powershell
 mvn org.springframework.boot:spring-boot-maven-plugin:2.7.18:run `

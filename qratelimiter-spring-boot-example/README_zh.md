@@ -39,7 +39,8 @@
 - Maven 3.8 或更高版本。
 - JDK 8，用于默认的 Spring Boot 2 构建。
 - JDK 17，用于 Spring Boot 3 profile。
-- 当使用 `redis` profile 或运行完整示例测试矩阵时，需要本地 Redis（`localhost:6379`）。
+- 当使用 `redis` profile 或运行完整示例测试矩阵时，默认使用 `localhost:6379`。
+  如需连接其他 Redis 实例，可以设置 `QRL_REDIS_HOST` / `QRL_REDIS_PORT`。
 
 运行下方命令之前，请先将 `JAVA_HOME` 设置为期望使用的 JDK。
 安装命令在仓库根目录执行，运行示例应用的命令在 example 模块目录执行。
@@ -202,7 +203,8 @@ curl http://localhost:8080/examples/algorithms/current/demo
 
 ## Redis 存储
 
-本地启动 Redis（端口 `6379`），然后运行：
+启动 Redis（默认端口 `6379`），或通过 `QRL_REDIS_HOST` / `QRL_REDIS_PORT`
+指定其他地址，然后运行：
 
 ```powershell
 mvn org.springframework.boot:spring-boot-maven-plugin:2.7.18:run `

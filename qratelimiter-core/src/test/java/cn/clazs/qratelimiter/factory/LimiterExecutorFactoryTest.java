@@ -12,6 +12,7 @@ import java.lang.reflect.Field;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("LimiterExecutorFactory 测试")
@@ -37,6 +38,15 @@ class LimiterExecutorFactoryTest {
                             .getExpiresAfter(TimeUnit.MINUTES),
                     algorithm + " should use configured expire-after-access minutes");
         }
+    }
+
+    @Test
+    @DisplayName("非法 options 应该在创建工厂时被拒绝")
+    void invalidOptionsShouldBeRejectedWhenCreatingFactory() {
+        RateLimiterOptions options = RateLimiterOptions.defaults();
+        options.setCacheMaximumSize(0L);
+
+        assertThrows(IllegalArgumentException.class, () -> new LimiterExecutorFactory(options));
     }
 
     private Cache<?, ?> findExecutorCache(LimiterExecutor executor) throws IllegalAccessException {

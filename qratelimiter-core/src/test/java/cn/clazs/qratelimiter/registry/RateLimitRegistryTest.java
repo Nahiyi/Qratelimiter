@@ -52,6 +52,31 @@ class RateLimitRegistryTest {
     }
 
     @Test
+    @DisplayName("基本功能：构造后不应受外部 options 修改影响")
+    void testConstructorDefensivelyCopiesOptions() {
+        RateLimiterOptions mutableOptions = RateLimiterOptions.builder()
+                .freq(2)
+                .interval(1000L)
+                .capacity(3)
+                .cacheExpireAfterAccessMinutes(1L)
+                .cacheMaximumSize(100L)
+                .build();
+
+        RateLimitRegistry testRegistry = new RateLimitRegistry(mutableOptions, executorFactory);
+
+        mutableOptions.setFreq(50);
+        mutableOptions.setInterval(60000L);
+        mutableOptions.setCapacity(75);
+        testRegistry.getOptions().setFreq(80);
+
+        RateLimiter limiter = testRegistry.getLimiter("defensive-copy");
+
+        assertEquals(2, limiter.getConfig().getFreq(), "频率应该使用构造时的快照");
+        assertEquals(1000L, limiter.getConfig().getInterval(), "窗口应该使用构造时的快照");
+        assertEquals(3, limiter.getConfig().getCapacity(), "容量应该使用构造时的快照");
+    }
+
+    @Test
     @DisplayName("基本功能：多次获取同一用户返回相同实例")
     void testSameInstanceForSameUser() {
         RateLimiter limiter1 = registry.getLimiter("user123");

@@ -32,18 +32,19 @@ public class RateLimitRegistry {
         if (executorFactory == null) {
             throw new IllegalArgumentException("executorFactory cannot be null");
         }
-        options.validate();
-        this.options = options;
+        RateLimiterOptions safeOptions = RateLimiterOptions.copyOf(options);
+        safeOptions.validate();
+        this.options = safeOptions;
         this.executorFactory = executorFactory;
         this.limiterCache = Caffeine.newBuilder()
-                .expireAfterAccess(options.getCacheExpireAfterAccessMinutes(), TimeUnit.MINUTES)
-                .maximumSize(options.getCacheMaximumSize())
+                .expireAfterAccess(safeOptions.getCacheExpireAfterAccessMinutes(), TimeUnit.MINUTES)
+                .maximumSize(safeOptions.getCacheMaximumSize())
                 .recordStats()
                 .build();
     }
 
     public RateLimiterOptions getOptions() {
-        return options;
+        return RateLimiterOptions.copyOf(options);
     }
 
     public RateLimiter getLimiter(String key) {
