@@ -1,0 +1,4 @@
+clazs:
+  ratelimiter:
+    algorithm: leaky-bucket
+    capacity: 3

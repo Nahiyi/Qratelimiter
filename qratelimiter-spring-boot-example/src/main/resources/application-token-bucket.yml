@@ -1,0 +1,4 @@
+clazs:
+  ratelimiter:
+    algorithm: token-bucket
+    capacity: 3

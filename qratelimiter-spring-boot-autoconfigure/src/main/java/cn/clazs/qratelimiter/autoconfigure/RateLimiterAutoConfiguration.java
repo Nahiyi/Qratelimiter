@@ -7,6 +7,7 @@ import cn.clazs.qratelimiter.properties.RateLimiterProperties;
 import cn.clazs.qratelimiter.registry.RateLimitRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -120,17 +121,18 @@ public class RateLimiterAutoConfiguration {
      */
     @Bean
     @ConditionalOnClass(name = "org.springframework.data.redis.core.StringRedisTemplate")
-    public Object redisTemplateInitializer(
+    public SmartInitializingSingleton redisTemplateInitializer(
             LimiterExecutorFactory factory,
             ObjectProvider<StringRedisTemplate> redisTemplateProvider) {
-        StringRedisTemplate redisTemplate = redisTemplateProvider.getIfAvailable();
-        if (redisTemplate != null) {
-            factory.setRedisTemplate(redisTemplate);
-            log.info("Redis 模板已注入到限流器工厂");
-        } else {
-            log.info("未检测到 Redis 模板，限流器将仅支持本地存储");
-        }
-        return new Object(); // 返回一个标记对象，仅用于触发注入
+        return () -> {
+            StringRedisTemplate redisTemplate = redisTemplateProvider.getIfAvailable();
+            if (redisTemplate != null) {
+                factory.setRedisTemplate(redisTemplate);
+                log.info("Redis 模板已注入到限流器工厂");
+            } else {
+                log.info("未检测到 Redis 模板，限流器将仅支持本地存储");
+            }
+        };
     }
 
     /**

@@ -1,14 +1,14 @@
 # Q-RateLimiter
 
 ![QRateLimiter Logo](https://img.shields.io/badge/QRateLimiter-Rate%20Limiter-brightgreen)
-![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.7.18%2B-brightgreen)
-![Java](https://img.shields.io/badge/Java-1.8%2B-orange)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.7.18%20%7C%203.2.x-brightgreen)
+![Java](https://img.shields.io/badge/Java-8%20%7C%2017-orange)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 ![Tests](https://img.shields.io/badge/Tests-100%25%20Passing-success)
 
-**一款轻量级、高性能、可拓展、开箱即用的 Spring Boot 限流器 Starter**（已支持滑动窗口日志、滑动窗口计数器、令牌桶、漏桶四类算法）
+**一款轻量级、高性能、可拓展、开箱即用的 Spring Boot 限流器 Starter**（支持 Spring Boot 2 / 3，已覆盖滑动窗口日志、滑动窗口计数器、令牌桶、漏桶四类算法）
 
-[特性](#特性) • [快速开始](#快速开始) • [配置说明](#配置说明) • [核心原理](#核心原理) • [性能测试](#性能测试) • [FAQ](#)
+[特性](#特性) • [快速开始](#快速开始) • [配置说明](#配置说明) • [示例模块](#示例模块) • [核心原理](#核心原理) • [FAQ](#)
 
 ---
 
@@ -21,6 +21,7 @@
 - [使用示例](#使用示例)
 - [核心原理](#核心原理)
 - [性能测试](#性能测试)
+- [示例模块](#示例模块)
 - [架构设计](#架构设计)
 - [常见问题](#常见问题)
 - [TODOs](#todos)
@@ -31,6 +32,15 @@
 ## 简介
 
 **QRateLimiter** 是一款专为 Spring Boot 应用设计的轻量级限流器 Starter。
+
+当前 release 版本：`1.3.0`
+
+当前版本已验证：
+
+- Spring Boot `2.7.18` + JDK 8
+- Spring Boot `3.2.x` + JDK 17
+- Local / Redis 两种存储
+- 4 种算法 × 2 种存储的完整组合
 
 当前版本已经支持以下算法组合：
 
@@ -46,11 +56,13 @@
 - **桥接模式架构**：算法与存储解耦，支持灵活组合扩展
 - **多算法支持**：滑动窗口日志 / 滑动窗口计数器 / 令牌桶 / 漏桶
 - **多存储支持**：本地内存 / Redis 分布式存储
+- **Spring Boot 2 / 3 兼容**：同时支持 `spring.factories` 与 `AutoConfiguration.imports`
 - **极致性能**：环形缓冲区 + 二分查找，时间复杂度 O(log n)
 - **精准限流**：基于滑动窗口，支持毫秒级时间粒度
 - **开箱即用**：引入 starter 依赖即可使用，内置全局异常处理器
 - **高度可靠**：线程安全，支持时钟回拨检测
 - **灵活配置**：支持全局配置 + 方法级自定义配置
+- **SpEL 字符串字面量**：支持 `@DoRateLimit(key = "'constant_key'")`
 - **零侵入**：基于注解和 AOP，对业务代码零侵入
 
 ---
@@ -101,7 +113,7 @@ mvn install
 <dependency>
     <groupId>cn.clazs</groupId>
     <artifactId>qratelimiter-spring-boot-starter</artifactId>
-    <version>1.2.0</version>
+    <version>1.3.0</version>
 </dependency>
 ```
 
@@ -109,15 +121,19 @@ mvn install
 
 ### 项目模块结构
 
-当前仓库内部已拆分为标准双模块结构：
+当前仓库内部已拆分为标准多模块结构：
 
 - `qratelimiter-spring-boot-autoconfigure`
 - `qratelimiter-spring-boot-starter`
+- `qratelimiter-spring-boot-example`
 
 其中：
 
 - `starter` 作为对外推荐引入的入口依赖
 - `autoconfigure` 承载自动装配、核心实现、Lua 脚本与测试代码
+- `example` 提供可运行的 Spring Boot 示例应用，用于演示配置、注解、算法与存储组合
+
+后续计划继续拆分 `core` 与独立测试模块，让限流核心能力脱离 Spring Boot 也可被普通 Java 项目复用。
 
 ### 1. 添加配置
 
@@ -193,6 +209,17 @@ public class GlobalExceptionHandler {
 
 **使用很简单！**
 
+默认异常响应会返回 HTTP 429，并包含触发限流的完整 key，便于排查具体是哪一个业务维度被限流：
+
+```json
+{
+  "status": 429,
+  "error": "TOO_MANY_REQUESTS",
+  "message": "请求过于频繁，请稍后再试",
+  "limitKey": "cn.example.UserController.getUserInfo:1001"
+}
+```
+
 ---
 
 ## 配置说明
@@ -257,9 +284,14 @@ spring:
 // 常量字符串
 @DoRateLimit(key = "'global_api'")
 
+// 普通常量字符串（不走 SpEL）
+@DoRateLimit(key = "global_api")
+
 // 复杂表达式
 @DoRateLimit(key = "#user.id + ':' + #apiType")
 ```
+
+> 从 `1.3.0` 开始，SpEL 字符串字面量会被正确解析为去掉外层引号后的业务 key，例如 `"'global_api'"` 会解析为 `global_api`，不会再把单引号带入最终限流 key。
 
 ---
 
@@ -441,6 +473,29 @@ Member: 时间戳:唯一ID（解决并发唯一性问题）
 | 100,000 | ~300 MB | 建议增加缓存过期时间                |
 
 > 💡 **本地模式**：QRateLimiter 在精度和性能之间取得了较好平衡；核心亮点依然是“低占用、轻量级”与“高性能”以及“开箱即用”！
+
+---
+
+## 示例模块
+
+`qratelimiter-spring-boot-example` 是一个可运行的 Spring Boot Web 示例模块，用来演示 starter 在真实应用中的使用方式。
+
+它覆盖：
+
+- 基础限流
+- SpEL 参数 key、对象字段 key、字符串字面量 key
+- `METHOD` 与 `GLOBAL` 两种作用域
+- Local 与 Redis 两种存储
+- 滑动窗口日志、滑动窗口计数器、令牌桶、漏桶四种算法
+- Spring Boot 2 + JDK 8 与 Spring Boot 3 + JDK 17 两种运行方式
+
+示例文档：
+
+- [`qratelimiter-spring-boot-example/README.md`](qratelimiter-spring-boot-example/README.md)
+- [`qratelimiter-spring-boot-example/README_zh.md`](qratelimiter-spring-boot-example/README_zh.md)
+- [`qratelimiter-spring-boot-example/README_en.md`](qratelimiter-spring-boot-example/README_en.md)
+
+需要说明的是，example 模块的定位是“演示 starter 如何被真实项目依赖和使用”。它可以辅助本地手工验证，但不会替代后续计划中的独立测试模块。
 
 ---
 
@@ -631,7 +686,13 @@ spring:
   redis:
     host: localhost
     port: 6379
+  data:
+    redis:
+      host: localhost
+      port: 6379
 ```
+
+> Spring Boot 2 使用 `spring.redis.*`，Spring Boot 3 推荐使用 `spring.data.redis.*`。为了兼容两代版本，可以同时写入两组配置。
 
 **实现原理**：
 
@@ -663,9 +724,19 @@ spring:
 
 ### 未来计划
 
-- [ ] **Spring Boot 3.x 支持**
-    - 支持 `src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` 配置方式
-    - 兼容 Spring Boot 2.7.18+ / 3.x 版本
+- [x] **Spring Boot 3.x 支持**
+    - 已支持 `src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` 配置方式
+    - 已验证 Spring Boot 2.7.18 + JDK 8 与 Spring Boot 3.2.x + JDK 17
+- [x] **Example 示例模块**
+    - 已提供 `qratelimiter-spring-boot-example`
+    - 可演示 4 种算法、2 种存储、SpEL key、作用域与 Redis 配置
+- [ ] **模块边界进一步标准化**
+    - 拆分 `qratelimiter-core`，让核心限流能力脱离 Spring Boot 也可复用
+    - 保持 `spring-boot-autoconfigure` 专注自动配置、AOP、Properties 与 Web 异常处理
+    - 让 `starter` 作为更薄的依赖聚合入口
+- [ ] **独立测试模块**
+    - 增加专门的测试 / 集成测试模块，系统覆盖 core、Local、Redis、Boot2、Boot3 与组合矩阵
+    - 将 example 保持为演示模块，测试模块承担质量兜底职责
 - [ ] **动态配置刷新**
     - 支持运行时修改限流参数
     - 集成 Spring Cloud Config / Nacos
