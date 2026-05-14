@@ -10,13 +10,17 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>qratelimiter-spring-boot-example</artifactId>
+    <artifactId>qratelimiter-test</artifactId>
     <packaging>jar</packaging>
 
-    <name>qratelimiter-spring-boot-example</name>
-    <description>Runnable Spring Boot examples for QRateLimiter</description>
+    <name>qratelimiter-test</name>
+    <description>Dedicated compatibility and integration verification module for QRateLimiter</description>
 
     <dependencies>
+        <dependency>
+            <groupId>cn.clazs</groupId>
+            <artifactId>qratelimiter-core</artifactId>
+        </dependency>
         <dependency>
             <groupId>cn.clazs</groupId>
             <artifactId>qratelimiter-spring-boot-starter</artifactId>
@@ -25,10 +29,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -36,14 +42,4 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
-
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <version>${spring-boot.version}</version>
-            </plugin>
-        </plugins>
-    </build>
 </project>
