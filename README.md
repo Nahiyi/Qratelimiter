@@ -8,7 +8,7 @@
 
 **一款轻量级、高性能、可拓展的限流器**。既支持普通 Java / Maven 项目通过 core API 编程式使用，也支持 Spring Boot 2 / 3 通过 starter 注解式开箱即用。
 
-[特性](#特性) • [快速开始](#快速开始) • [配置说明](#配置说明) • [示例模块](#示例模块) • [核心原理](#核心原理) • [FAQ](#)
+[特性](#特性) • [快速开始](#快速开始) • [配置说明](#配置说明) • [示例模块](#示例模块) • [测试模块](#测试模块) • [核心原理](#核心原理) • [FAQ](#)
 
 ---
 
@@ -22,6 +22,7 @@
 - [核心原理](#核心原理)
 - [性能测试](#性能测试)
 - [示例模块](#示例模块)
+- [测试模块](#测试模块)
 - [架构设计](#架构设计)
 - [常见问题](#常见问题)
 - [TODOs](#todos)
@@ -33,7 +34,7 @@
 
 **QRateLimiter** 是一款轻量级限流器，核心能力已经拆分为不依赖 Spring Boot 的 `qratelimiter-core`，Spring Boot 用户仍然可以通过 starter 获得注解式开箱即用体验。
 
-当前 release 版本：`1.4.0`
+当前 release 版本：`1.5.0`
 
 当前版本已验证：
 
@@ -116,7 +117,7 @@ mvn install
 <dependency>
     <groupId>cn.clazs</groupId>
     <artifactId>qratelimiter-spring-boot-starter</artifactId>
-    <version>1.4.0</version>
+    <version>1.5.0</version>
 </dependency>
 ```
 
@@ -128,7 +129,7 @@ mvn install
 <dependency>
     <groupId>cn.clazs</groupId>
     <artifactId>qratelimiter-core</artifactId>
-    <version>1.4.0</version>
+    <version>1.5.0</version>
 </dependency>
 ```
 
@@ -140,6 +141,7 @@ mvn install
 - `qratelimiter-spring-boot-starter`
 - `qratelimiter-spring-boot-example`
 - `qratelimiter-core`
+- `qratelimiter-test`
 
 其中：
 
@@ -147,8 +149,7 @@ mvn install
 - `core` 承载不依赖 Spring Boot 的核心 API、注册中心和本地算法实现
 - `autoconfigure` 承载自动装配、注解 AOP、异常处理、Redis 执行器和 Lua 脚本
 - `example` 提供可运行的 Spring Boot 示例应用，用于演示配置、注解、算法与存储组合
-
-后续计划继续拆分独立测试模块，让 core、Local、Redis、Boot2、Boot3 与组合矩阵拥有更独立的质量兜底。
+- `test` 承担独立兼容性验证，覆盖 core-only、Spring Boot 2 / 3、Local / Redis 与可选 stress profile
 
 ### 1. 添加配置
 
@@ -548,6 +549,55 @@ Member: 时间戳:唯一ID（解决并发唯一性问题）
 
 ---
 
+## 测试模块
+
+`qratelimiter-test` 是从 `1.5.0` 开始新增的独立验证模块。它不是对外运行时依赖，也不是演示应用，而是专门用于验证项目真实使用路径和组合矩阵。
+
+它覆盖：
+
+- 普通 Java / Maven 项目仅引入 `qratelimiter-core` 的编程式用法
+- Spring Boot starter 的注解式用法、SpEL key、作用域、默认异常响应和 `RateLimiterTemplate` Bean
+- Spring Boot 2 默认构建与 Spring Boot 3 profile 构建
+- 4 种算法 × Local / Redis 两种存储的 starter 矩阵
+- 可选本地并发 stress profile
+
+默认测试：
+
+```bash
+mvn -B -pl qratelimiter-test -am test --file pom.xml
+```
+
+Spring Boot 3 兼容性测试：
+
+```bash
+mvn -B -Pspring-boot-3 -pl qratelimiter-test -am test --file pom.xml
+```
+
+Redis 真实路径验证：
+
+```bash
+QRL_REDIS_HOST=localhost QRL_REDIS_PORT=6379 \
+mvn -B -pl qratelimiter-test -am test --file pom.xml
+```
+
+Windows PowerShell 示例：
+
+```powershell
+$env:QRL_REDIS_HOST='localhost'
+$env:QRL_REDIS_PORT='6379'
+mvn -B -pl qratelimiter-test -am test --file pom.xml
+```
+
+可选 stress profile：
+
+```bash
+mvn -B -Pstress -pl qratelimiter-test -am test --file pom.xml
+```
+
+默认构建不会运行 stress 测试；CI 会单独验证该 profile，防止压力测试入口失效。
+
+---
+
 ## 架构设计
 
 ### 设计理念：桥接模式 + 多维度解耦
@@ -783,9 +833,10 @@ spring:
     - 已拆分 `qratelimiter-core`，让核心限流能力脱离 Spring Boot 也可复用
     - `spring-boot-autoconfigure` 专注自动配置、AOP、Properties、Redis 集成与 Web 异常处理
     - `starter` 作为更薄的依赖聚合入口
-- [ ] **独立测试模块**
-    - 增加专门的测试 / 集成测试模块，系统覆盖 core、Local、Redis、Boot2、Boot3 与组合矩阵
-    - 将 example 保持为演示模块，测试模块承担质量兜底职责
+- [x] **独立测试模块**
+    - 已新增 `qratelimiter-test`，系统覆盖 core-only、Local、Redis、Boot2、Boot3 与组合矩阵
+    - example 保持为演示模块，测试模块承担质量兜底职责
+    - 已提供可选 `-Pstress` 本地并发压力验证入口
 - [ ] **动态配置刷新**
     - 支持运行时修改限流参数
     - 集成 Spring Cloud Config / Nacos
