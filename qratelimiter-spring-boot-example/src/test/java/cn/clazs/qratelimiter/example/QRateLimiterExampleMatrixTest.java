@@ -1,6 +1,9 @@
 package cn.clazs.qratelimiter.example;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ConditionEvaluationResult;
+import org.junit.jupiter.api.extension.ExecutionCondition;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -8,6 +11,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -123,6 +128,7 @@ class LeakyBucketLocalExampleMatrixTest extends AbstractQRateLimiterExampleMatri
 @SpringBootTest(classes = QRateLimiterExampleApplication.class)
 @AutoConfigureMockMvc
 @ActiveProfiles("redis")
+@RequiresRedis
 class SlidingWindowLogRedisExampleMatrixTest extends AbstractQRateLimiterExampleMatrixTest {
 
     @Override
@@ -139,6 +145,7 @@ class SlidingWindowLogRedisExampleMatrixTest extends AbstractQRateLimiterExample
 @SpringBootTest(classes = QRateLimiterExampleApplication.class)
 @AutoConfigureMockMvc
 @ActiveProfiles({"redis", "sliding-window-counter"})
+@RequiresRedis
 class SlidingWindowCounterRedisExampleMatrixTest extends AbstractQRateLimiterExampleMatrixTest {
 
     @Override
@@ -155,6 +162,7 @@ class SlidingWindowCounterRedisExampleMatrixTest extends AbstractQRateLimiterExa
 @SpringBootTest(classes = QRateLimiterExampleApplication.class)
 @AutoConfigureMockMvc
 @ActiveProfiles({"redis", "token-bucket"})
+@RequiresRedis
 class TokenBucketRedisExampleMatrixTest extends AbstractQRateLimiterExampleMatrixTest {
 
     @Override
@@ -171,6 +179,7 @@ class TokenBucketRedisExampleMatrixTest extends AbstractQRateLimiterExampleMatri
 @SpringBootTest(classes = QRateLimiterExampleApplication.class)
 @AutoConfigureMockMvc
 @ActiveProfiles({"redis", "leaky-bucket"})
+@RequiresRedis
 class LeakyBucketRedisExampleMatrixTest extends AbstractQRateLimiterExampleMatrixTest {
 
     @Override
@@ -181,5 +190,67 @@ class LeakyBucketRedisExampleMatrixTest extends AbstractQRateLimiterExampleMatri
     @Override
     String expectedStorage() {
         return "REDIS";
+    }
+}
+
+@java.lang.annotation.Target({java.lang.annotation.ElementType.TYPE, java.lang.annotation.ElementType.METHOD})
+@java.lang.annotation.Retention(java.lang.annotation.RetentionPolicy.RUNTIME)
+@java.lang.annotation.Documented
+@org.junit.jupiter.api.extension.ExtendWith(RedisAvailabilityCondition.class)
+@interface RequiresRedis {
+}
+
+final class RedisAvailabilityCondition implements ExecutionCondition {
+    private static final ConditionEvaluationResult ENABLED = ConditionEvaluationResult.enabled("Redis is reachable");
+
+    @Override
+    public ConditionEvaluationResult evaluateExecutionCondition(ExtensionContext context) {
+        String forced = firstNonBlank(
+                System.getProperty("qratelimiter.redis.tests.enabled"),
+                System.getenv("QRL_REDIS_TESTS_ENABLED"));
+        if ("true".equalsIgnoreCase(forced)) {
+            return ENABLED;
+        }
+
+        String host = firstNonBlank(
+                System.getProperty("qratelimiter.redis.host"),
+                System.getenv("QRL_REDIS_HOST"),
+                "localhost");
+        int port = parsePort(firstNonBlank(
+                System.getProperty("qratelimiter.redis.port"),
+                System.getenv("QRL_REDIS_PORT"),
+                "6379"));
+
+        if (isTcpReachable(host, port)) {
+            return ENABLED;
+        }
+
+        return ConditionEvaluationResult.disabled("Redis is not reachable at " + host + ":" + port);
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.trim().isEmpty()) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private int parsePort(String value) {
+        try {
+            return Integer.parseInt(value);
+        } catch (Exception ignored) {
+            return 6379;
+        }
+    }
+
+    private boolean isTcpReachable(String host, int port) {
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(host, port), 1000);
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 }

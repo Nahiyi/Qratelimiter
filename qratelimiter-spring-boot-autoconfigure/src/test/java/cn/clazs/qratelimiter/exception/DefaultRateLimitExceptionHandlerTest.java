@@ -2,7 +2,6 @@ package cn.clazs.qratelimiter.exception;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -20,7 +19,7 @@ class DefaultRateLimitExceptionHandlerTest {
         ResponseEntity<DefaultRateLimitExceptionHandler.ErrorResponse> response =
                 handler.handleRateLimitException(exception);
 
-        assertEquals(HttpStatus.TOO_MANY_REQUESTS, response.getStatusCode());
+        assertEquals(429, response.getStatusCodeValue());
         assertNotNull(response.getBody());
         assertEquals(429, response.getBody().getStatus());
         assertEquals("TOO_MANY_REQUESTS", response.getBody().getError());

@@ -33,8 +33,8 @@ jobs:
 
       # Step 3: 执行 Maven 编译 + 单元测试
       # 说明：
-      #   - 当前单元测试仅覆盖 Local 存储实现，不依赖 Redis 服务
-      #   - 启用 -DskipITs 跳过集成测试（后续可配合 Testcontainers 开启）
+      #   - 默认矩阵不启动 Redis，Redis 相关测试会在服务不可用时通过 JUnit assumption 跳过
+      #   - Redis 真实路径由下方 redis-verification job 在 Ubuntu 上单独验证
       - name: Build and test with Maven
         run: mvn -B clean verify --file pom.xml
 
@@ -48,7 +48,60 @@ jobs:
             **/target/surefire-reports/
             **/target/failsafe-reports/
 
-  # Job 2: 代码风格与质量检查（仅在 Ubuntu + JDK 8 上运行一次即可）
+  # Job 2: Redis 集成验证（Ubuntu 上启动 Redis 服务后运行）
+  redis-verification:
+    name: Redis verification (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    env:
+      QRL_REDIS_TESTS_ENABLED: true
+      QRL_REDIS_HOST: localhost
+      QRL_REDIS_PORT: "6379"
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: "Boot 2 / JDK 8"
+            java: 8
+            maven_profile: ""
+          - name: "Boot 3 / JDK 17"
+            java: 17
+            maven_profile: "-Pspring-boot-3"
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Verify Redis-backed tests
+        run: mvn -B ${{ matrix.maven_profile }} clean verify --file pom.xml
+
+      - name: Upload Redis test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: redis-test-reports-jdk${{ matrix.java }}
+          path: |
+            **/target/surefire-reports/
+            **/target/failsafe-reports/
+
+  # Job 3: 代码风格与质量检查（仅在 Ubuntu + JDK 8 上运行一次即可）
   lint:
     name: Code quality check
     runs-on: ubuntu-latest
@@ -67,7 +120,7 @@ jobs:
       - name: Validate project structure
         run: mvn -B validate --file pom.xml
 
-  # Job 3: 构建产物检查，确保 Starter 可正常打包
+  # Job 4: 构建产物检查，确保 Starter 可正常打包
   package:
     name: Package verification
     runs-on: ubuntu-latest
