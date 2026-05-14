@@ -9,6 +9,7 @@
 示例包含以下端点：
 
 - 基于 key 的基础限流。
+- 编程式 `RateLimiterTemplate` 使用方式。
 - 通过路径变量、请求参数、请求体和常量提取的 SpEL key。
 - `METHOD` 作用域限流。
 - `GLOBAL` 作用域限流。
@@ -103,6 +104,23 @@ curl http://localhost:8080/examples/basic/users/u1001
 ```
 
 第三次请求会返回 HTTP 429，因为该端点对同一用户 key 每分钟只允许两次请求。
+
+## Template API 示例
+
+端点：
+
+```text
+GET /examples/template/users/{userId}
+```
+
+这个端点演示编程式 API。控制器不使用 `@DoRateLimit`，而是注入
+`RateLimiterTemplate` 并显式调用：
+
+```java
+boolean allowed = rateLimiterTemplate.tryAcquire("template:" + userId, 2, 60000L, 3);
+```
+
+这也是普通 Java / Maven 项目在不依赖 Spring Boot 注解生态时可以使用的核心 API。
 
 ## SpEL Key 示例
 

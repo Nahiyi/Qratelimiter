@@ -13,6 +13,7 @@ manual checks before releasing the starter.
 The example includes endpoints for:
 
 - Basic per-key rate limiting.
+- Programmatic `RateLimiterTemplate` usage.
 - SpEL keys from path variables, request parameters, request bodies, and constants.
 - `METHOD` scoped limits.
 - `GLOBAL` scoped limits.
@@ -112,6 +113,23 @@ curl http://localhost:8080/examples/basic/users/u1001
 
 The third request returns HTTP 429 because the endpoint allows two requests per
 minute for the same user key.
+
+## Template API Example
+
+Endpoint:
+
+```text
+GET /examples/template/users/{userId}
+```
+
+This endpoint demonstrates the programmatic API. Instead of using
+`@DoRateLimit`, the controller injects `RateLimiterTemplate` and calls:
+
+```java
+boolean allowed = rateLimiterTemplate.tryAcquire("template:" + userId, 2, 60000L, 3);
+```
+
+This is the same core API that can be used outside Spring Boot.
 
 ## SpEL Key Examples
 
