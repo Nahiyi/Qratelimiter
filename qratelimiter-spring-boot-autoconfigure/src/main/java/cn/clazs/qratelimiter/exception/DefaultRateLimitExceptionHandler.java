@@ -1,7 +1,7 @@
 package cn.clazs.qratelimiter.exception;
 
-import lombok.Data;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.core.annotation.Order;
@@ -21,12 +21,13 @@ import org.springframework.web.servlet.DispatcherServlet;
  * @author clazs
  * @since 1.0.0
  */
-@Slf4j
 @RestControllerAdvice
 @Order(1)  // 优先级最高，确保最先捕获
 @ConditionalOnWebApplication
 @ConditionalOnClass(DispatcherServlet.class)
 public class DefaultRateLimitExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(DefaultRateLimitExceptionHandler.class);
 
     /**
      * 处理限流异常
@@ -58,7 +59,6 @@ public class DefaultRateLimitExceptionHandler {
     /**
      * 错误响应结构
      */
-    @Data
     public static class ErrorResponse {
         private int status;
         private String error;
@@ -69,6 +69,38 @@ public class DefaultRateLimitExceptionHandler {
             this.status = status;
             this.error = error;
             this.message = message;
+            this.limitKey = limitKey;
+        }
+
+        public int getStatus() {
+            return status;
+        }
+
+        public void setStatus(int status) {
+            this.status = status;
+        }
+
+        public String getError() {
+            return error;
+        }
+
+        public void setError(String error) {
+            this.error = error;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
+        public void setMessage(String message) {
+            this.message = message;
+        }
+
+        public String getLimitKey() {
+            return limitKey;
+        }
+
+        public void setLimitKey(String limitKey) {
             this.limitKey = limitKey;
         }
 

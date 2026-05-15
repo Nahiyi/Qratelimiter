@@ -3,7 +3,6 @@ package cn.clazs.qratelimiter.properties;
 import cn.clazs.qratelimiter.core.RateLimiterOptions;
 import cn.clazs.qratelimiter.enums.RateLimitAlgorithm;
 import cn.clazs.qratelimiter.enums.RateLimitStorage;
-import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -26,7 +25,6 @@ import org.springframework.stereotype.Component;
  * @author clazs
  * @since 1.0.0
  */
-@Data
 @Component
 @ConfigurationProperties(prefix = "clazs.ratelimiter")
 public class RateLimiterProperties {
@@ -80,6 +78,78 @@ public class RateLimiterProperties {
      * Redis 配置
      */
     private RedisConfig redis = new RedisConfig();
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    public int getFreq() {
+        return freq;
+    }
+
+    public void setFreq(int freq) {
+        this.freq = freq;
+    }
+
+    public long getInterval() {
+        return interval;
+    }
+
+    public void setInterval(long interval) {
+        this.interval = interval;
+    }
+
+    public int getCapacity() {
+        return capacity;
+    }
+
+    public void setCapacity(int capacity) {
+        this.capacity = capacity;
+    }
+
+    public long getCacheExpireAfterAccessMinutes() {
+        return cacheExpireAfterAccessMinutes;
+    }
+
+    public void setCacheExpireAfterAccessMinutes(long cacheExpireAfterAccessMinutes) {
+        this.cacheExpireAfterAccessMinutes = cacheExpireAfterAccessMinutes;
+    }
+
+    public long getCacheMaximumSize() {
+        return cacheMaximumSize;
+    }
+
+    public void setCacheMaximumSize(long cacheMaximumSize) {
+        this.cacheMaximumSize = cacheMaximumSize;
+    }
+
+    public RateLimitAlgorithm getAlgorithm() {
+        return algorithm;
+    }
+
+    public void setAlgorithm(RateLimitAlgorithm algorithm) {
+        this.algorithm = algorithm;
+    }
+
+    public RateLimitStorage getStorage() {
+        return storage;
+    }
+
+    public void setStorage(RateLimitStorage storage) {
+        this.storage = storage;
+    }
+
+    public RedisConfig getRedis() {
+        return redis;
+    }
+
+    public void setRedis(RedisConfig redis) {
+        this.redis = redis;
+    }
 
     /**
      * 验证配置参数的合法性
@@ -146,7 +216,6 @@ public class RateLimiterProperties {
     /**
      * Redis 配置类
      */
-    @Data
     public static class RedisConfig {
         /**
          * Redis 键前缀（默认：qratelimiter:）
@@ -157,5 +226,21 @@ public class RateLimiterProperties {
          * Lua 脚本位置（默认：classpath:redis/）
          */
         private String scriptLocation = "classpath:redis/";
+
+        public String getKeyPrefix() {
+            return keyPrefix;
+        }
+
+        public void setKeyPrefix(String keyPrefix) {
+            this.keyPrefix = keyPrefix;
+        }
+
+        public String getScriptLocation() {
+            return scriptLocation;
+        }
+
+        public void setScriptLocation(String scriptLocation) {
+            this.scriptLocation = scriptLocation;
+        }
     }
 }

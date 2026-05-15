@@ -12,7 +12,8 @@ import cn.clazs.qratelimiter.executor.redis.RedisTokenBucketExecutor;
 import cn.clazs.qratelimiter.factory.LimiterExecutorFactory;
 import cn.clazs.qratelimiter.properties.RateLimiterProperties;
 import cn.clazs.qratelimiter.registry.RateLimitRegistry;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -83,11 +84,12 @@ import org.springframework.data.redis.core.StringRedisTemplate;
  * @see RateLimitRegistry
  * @see RateLimitAspect
  */
-@Slf4j
 @Configuration
 @EnableConfigurationProperties(RateLimiterProperties.class)
 @ConditionalOnProperty(prefix = "clazs.ratelimiter", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class RateLimiterAutoConfiguration {
+
+    private static final Logger log = LoggerFactory.getLogger(RateLimiterAutoConfiguration.class);
 
     /**
      * 注册限流执行器工厂 Bean

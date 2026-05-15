@@ -1,7 +1,6 @@
 package cn.clazs.qratelimiter.value;
 
 import cn.clazs.qratelimiter.util.TimestampUtil;
-import lombok.Getter;
 
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -23,19 +22,15 @@ public class UserLimiter {
     private final long[] timestamps;
 
     /** 时间窗口内最大允许访问次数 */
-    @Getter
     private final int freq;
 
     /** 时间窗口长度（单位：毫秒） */
-    @Getter
     private final long interval;
 
     /** 当前有效元素数量 */
-    @Getter
     private int size;
 
     /** 数组总容量 */
-    @Getter
     private final int capacity;
 
     /** 指向最旧的元素（逻辑索引0） */
@@ -85,6 +80,22 @@ public class UserLimiter {
 
     public UserLimiter(int freq, long interval) {
         this(freq, freq, interval);
+    }
+
+    public int getFreq() {
+        return freq;
+    }
+
+    public long getInterval() {
+        return interval;
+    }
+
+    public int getSize() {
+        return size;
+    }
+
+    public int getCapacity() {
+        return capacity;
     }
 
     /**
