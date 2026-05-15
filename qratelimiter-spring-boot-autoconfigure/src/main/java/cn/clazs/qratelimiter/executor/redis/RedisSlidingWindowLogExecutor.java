@@ -1,7 +1,6 @@
 package cn.clazs.qratelimiter.executor.redis;
 
 import cn.clazs.qratelimiter.core.LimiterExecutor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -21,7 +20,6 @@ import java.util.concurrent.ThreadLocalRandom;
  * @author clazs
  * @since 1.0.0
  */
-@Slf4j
 public class RedisSlidingWindowLogExecutor implements LimiterExecutor {
 
     private final StringRedisTemplate redisTemplate;

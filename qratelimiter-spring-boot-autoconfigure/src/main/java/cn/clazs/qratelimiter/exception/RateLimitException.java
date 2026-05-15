@@ -1,7 +1,5 @@
 package cn.clazs.qratelimiter.exception;
 
-import lombok.Getter;
-
 /**
  * 限流异常
  * 当请求超过限流阈值时抛出此异常
@@ -23,7 +21,6 @@ public class RateLimitException extends RuntimeException {
     /**
      * 限流的完整 Key 名称，附带类路径等
      */
-    @Getter
     private final String limitKey;
 
     public RateLimitException(String limitKey) {
@@ -38,6 +35,10 @@ public class RateLimitException extends RuntimeException {
     public RateLimitException(String limitKey, String message) {
         super(message);
         this.limitKey = limitKey;
+    }
+
+    public String getLimitKey() {
+        return limitKey;
     }
 
     @Override

@@ -34,7 +34,7 @@
 
 **QRateLimiter** 是一款轻量级限流器，核心能力已经拆分为不依赖 Spring Boot 的 `qratelimiter-core`，Spring Boot 用户仍然可以通过 starter 获得注解式开箱即用体验。
 
-当前 release 版本：`1.5.0`
+当前 release 版本：`1.5.1`
 
 当前版本已验证：
 
@@ -117,7 +117,7 @@ mvn install
 <dependency>
     <groupId>cn.clazs</groupId>
     <artifactId>qratelimiter-spring-boot-starter</artifactId>
-    <version>1.5.0</version>
+    <version>1.5.1</version>
 </dependency>
 ```
 
@@ -129,7 +129,7 @@ mvn install
 <dependency>
     <groupId>cn.clazs</groupId>
     <artifactId>qratelimiter-core</artifactId>
-    <version>1.5.0</version>
+    <version>1.5.1</version>
 </dependency>
 ```
 
