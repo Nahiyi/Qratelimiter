@@ -559,7 +559,7 @@ Member: 时间戳:唯一ID（解决并发唯一性问题）
 - Spring Boot starter 的注解式用法、SpEL key、作用域、默认异常响应和 `RateLimiterTemplate` Bean
 - Spring Boot 2 默认构建与 Spring Boot 3 profile 构建
 - 4 种算法 × Local / Redis 两种存储的 starter 矩阵
-- 可选本地并发 stress profile
+- 可选并发 stress profile，覆盖 core-only 4 算法与 starter 4 算法 × Local / Redis
 
 默认测试：
 
@@ -594,7 +594,19 @@ mvn -B -pl qratelimiter-test -am test --file pom.xml
 mvn -B -Pstress -pl qratelimiter-test -am test --file pom.xml
 ```
 
-默认构建不会运行 stress 测试；CI 会单独验证该 profile，防止压力测试入口失效。
+Spring Boot 3 stress profile：
+
+```bash
+mvn -B -Pstress,spring-boot-3 -pl qratelimiter-test -am test --file pom.xml
+```
+
+Windows PowerShell 下需要给 profile 参数加引号：
+
+```powershell
+mvn -B '-Pstress,spring-boot-3' -pl qratelimiter-test -am test --file pom.xml
+```
+
+默认构建不会运行 stress 测试；CI 会在 Boot 2 / JDK 8 与 Boot 3 / JDK 17 两条路径上单独验证该 profile，并启动 Redis 覆盖真实 Redis 存储组合。
 
 ---
 
@@ -836,7 +848,7 @@ spring:
 - [x] **独立测试模块**
     - 已新增 `qratelimiter-test`，系统覆盖 core-only、Local、Redis、Boot2、Boot3 与组合矩阵
     - example 保持为演示模块，测试模块承担质量兜底职责
-    - 已提供可选 `-Pstress` 本地并发压力验证入口
+    - 已提供可选 `-Pstress` 并发压力验证入口，覆盖 core-only 与 starter 矩阵
 - [ ] **动态配置刷新**
     - 支持运行时修改限流参数
     - 集成 Spring Cloud Config / Nacos
