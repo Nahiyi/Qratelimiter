@@ -8,7 +8,7 @@
 
 **一款轻量级、高性能、可拓展的限流器**。既支持普通 Java / Maven 项目通过 core API 编程式使用，也支持 Spring Boot 2 / 3 通过 starter 注解式开箱即用。
 
-[特性](#特性) • [快速开始](#快速开始) • [配置说明](#配置说明) • [示例模块](#示例模块) • [核心原理](#核心原理) • [FAQ](#)
+[特性](#特性) • [快速开始](#快速开始) • [配置说明](#配置说明) • [示例模块](#示例模块) • [测试模块](#测试模块) • [核心原理](#核心原理) • [FAQ](#)
 
 ---
 
@@ -22,6 +22,7 @@
 - [核心原理](#核心原理)
 - [性能测试](#性能测试)
 - [示例模块](#示例模块)
+- [测试模块](#测试模块)
 - [架构设计](#架构设计)
 - [常见问题](#常见问题)
 - [TODOs](#todos)
@@ -33,7 +34,7 @@
 
 **QRateLimiter** 是一款轻量级限流器，核心能力已经拆分为不依赖 Spring Boot 的 `qratelimiter-core`，Spring Boot 用户仍然可以通过 starter 获得注解式开箱即用体验。
 
-当前 release 版本：`1.4.0`
+当前 release 版本：`1.5.0`
 
 当前版本已验证：
 
@@ -60,8 +61,8 @@
 - **多算法支持**：滑动窗口日志 / 滑动窗口计数器 / 令牌桶 / 漏桶
 - **多存储支持**：本地内存 / Redis 分布式存储
 - **Spring Boot 2 / 3 兼容**：同时支持 `spring.factories` 与 `AutoConfiguration.imports`
-- **极致性能**：环形缓冲区 + 二分查找，时间复杂度 O(log n)
-- **精准限流**：基于滑动窗口，支持毫秒级时间粒度
+- **高性能默认实现**：默认滑动窗口日志基于环形缓冲区 + 二分查找，时间复杂度 O(log n)
+- **多模型限流**：同时支持精确滑动窗口、近似滑动窗口、令牌桶与漏桶语义
 - **开箱即用**：引入 starter 依赖即可使用，内置全局异常处理器
 - **高度可靠**：线程安全，支持时钟回拨检测
 - **灵活配置**：支持全局配置 + 方法级自定义配置
@@ -76,12 +77,12 @@
 
 | 特性       | 说明                               |
 |----------|----------------------------------|
-| **高性能**  | 环形缓冲区 + 二分查找，时间复杂度 O(log n)      |
-| **低内存**  | 每个限流器仅需 `freq * 1.5` 个 long 数组元素 |
-| **精准限流** | 滑动窗口算法，支持任意时间粒度（毫秒级）             |
+| **高性能**  | 默认滑动窗口日志使用环形缓冲区 + 二分查找，时间复杂度 O(log n) |
+| **低内存**  | 本地状态按 key 缓存，滑动窗口日志仅保存固定容量时间戳数组 |
+| **多模型限流** | 支持精确滑动窗口、近似滑动窗口、令牌桶与漏桶             |
 | **自动管理** | 基于 Caffeine Cache，自动清理过期限流器实例    |
 | **灵活隔离** | 支持方法级隔离（默认）和全局限流两种模式             |
-| **动态配置** | 支持全局配置和方法级自定义配置覆盖                |
+| **配置覆盖** | 支持全局配置和方法级自定义配置覆盖                |
 
 ### 技术亮点
 
@@ -116,7 +117,7 @@ mvn install
 <dependency>
     <groupId>cn.clazs</groupId>
     <artifactId>qratelimiter-spring-boot-starter</artifactId>
-    <version>1.4.0</version>
+    <version>1.5.0</version>
 </dependency>
 ```
 
@@ -128,7 +129,7 @@ mvn install
 <dependency>
     <groupId>cn.clazs</groupId>
     <artifactId>qratelimiter-core</artifactId>
-    <version>1.4.0</version>
+    <version>1.5.0</version>
 </dependency>
 ```
 
@@ -140,6 +141,7 @@ mvn install
 - `qratelimiter-spring-boot-starter`
 - `qratelimiter-spring-boot-example`
 - `qratelimiter-core`
+- `qratelimiter-test`
 
 其中：
 
@@ -147,8 +149,7 @@ mvn install
 - `core` 承载不依赖 Spring Boot 的核心 API、注册中心和本地算法实现
 - `autoconfigure` 承载自动装配、注解 AOP、异常处理、Redis 执行器和 Lua 脚本
 - `example` 提供可运行的 Spring Boot 示例应用，用于演示配置、注解、算法与存储组合
-
-后续计划继续拆分独立测试模块，让 core、Local、Redis、Boot2、Boot3 与组合矩阵拥有更独立的质量兜底。
+- `test` 承担独立兼容性验证，覆盖 core-only、Spring Boot 2 / 3、Local / Redis 与可选 stress profile
 
 ### 1. 添加配置
 
@@ -163,7 +164,7 @@ clazs:
     capacity: 150                    # 容量/精度参数
     algorithm: sliding-window-log    # 限流算法：sliding-window-log / sliding-window-counter / token-bucket / leaky-bucket
     storage: local                   # 存储类型：local=本地内存，redis=分布式
-    cache-expire-after-access-minutes: 30   # 缓存过期时间
+    cache-expire-after-access-minutes: 1440  # 缓存过期时间
     cache-maximum-size: 1000                 # 最大缓存数量
 ```
 
@@ -507,6 +508,8 @@ Member: 时间戳:唯一ID（解决并发唯一性问题）
 
 ## 性能测试
 
+以下数据是本地模式的参考结果，用于说明默认滑动窗口日志实现的内存量级；不同 JDK、机器、算法、缓存配置和 key 分布下会有差异。
+
 ### 测试环境
 
 - **CPU**: Intel Core i7-13620H
@@ -544,7 +547,68 @@ Member: 时间戳:唯一ID（解决并发唯一性问题）
 - [`qratelimiter-spring-boot-example/README_zh.md`](qratelimiter-spring-boot-example/README_zh.md)
 - [`qratelimiter-spring-boot-example/README_en.md`](qratelimiter-spring-boot-example/README_en.md)
 
-需要说明的是，example 模块的定位是“演示 starter 如何被真实项目依赖和使用”。它可以辅助本地手工验证，但不会替代后续计划中的独立测试模块。
+需要说明的是，example 模块的定位是“演示 starter 如何被真实项目依赖和使用”。它可以辅助本地手工验证，但不替代 `qratelimiter-test` 独立测试模块承担的兼容性与压力验证职责。
+
+---
+
+## 测试模块
+
+`qratelimiter-test` 是从 `1.5.0` 开始新增的独立验证模块。它不是对外运行时依赖，也不是演示应用，而是专门用于验证项目真实使用路径和组合矩阵。
+
+它覆盖：
+
+- 普通 Java / Maven 项目仅引入 `qratelimiter-core` 的编程式用法
+- Spring Boot starter 的注解式用法、SpEL key、作用域、默认异常响应和 `RateLimiterTemplate` Bean
+- Spring Boot 2 默认构建与 Spring Boot 3 profile 构建
+- 4 种算法 × Local / Redis 两种存储的 starter 矩阵
+- 可选并发 stress profile，覆盖 core-only 4 算法与 starter 4 算法 × Local / Redis
+
+默认测试：
+
+```bash
+mvn -B -pl qratelimiter-test -am test --file pom.xml
+```
+
+Spring Boot 3 兼容性测试：
+
+```bash
+mvn -B -Pspring-boot-3 -pl qratelimiter-test -am test --file pom.xml
+```
+
+Redis 真实路径验证：
+
+```bash
+QRL_REDIS_HOST=localhost QRL_REDIS_PORT=6379 \
+mvn -B -pl qratelimiter-test -am test --file pom.xml
+```
+
+Windows PowerShell 示例：
+
+```powershell
+$env:QRL_REDIS_HOST='localhost'
+$env:QRL_REDIS_PORT='6379'
+mvn -B -pl qratelimiter-test -am test --file pom.xml
+```
+
+可选 stress profile：
+
+```bash
+mvn -B -Pstress -pl qratelimiter-test -am test --file pom.xml
+```
+
+Spring Boot 3 stress profile：
+
+```bash
+mvn -B -Pstress,spring-boot-3 -pl qratelimiter-test -am test --file pom.xml
+```
+
+Windows PowerShell 下需要给 profile 参数加引号：
+
+```powershell
+mvn -B '-Pstress,spring-boot-3' -pl qratelimiter-test -am test --file pom.xml
+```
+
+默认构建不会运行 stress 测试；CI 会在 Boot 2 / JDK 8 与 Boot 3 / JDK 17 两条路径上单独验证该 profile，并启动 Redis 覆盖真实 Redis 存储组合。
 
 ---
 
@@ -704,14 +768,13 @@ interval: 3600000  # 每小时 10 次
 
 QRateLimiter 内置**时钟回拨检测**，当检测到时钟回拨时会：
 
-1. 记录警告日志
-2. 使用旧的时间戳继续限流
-3. 防止限流失效
+1. 使用旧的时间戳或服务端时间继续限流
+2. 防止本地时钟回拨导致窗口或速率计算异常
+3. Redis 实现统一使用 Redis 服务器时间，避免多实例本地时钟不一致
 
 ```java
-if (currentTimestamp<lastTimestamp) {
-    log.warn("检测到时钟回拨：旧={}，新={}",lastTimestamp, currentTimestamp);
-    currentTimestamp =lastTimestamp;  // 使用旧时间戳，流量高并发下时间依旧安全
+if (currentTimestamp < lastTimestamp) {
+    currentTimestamp = lastTimestamp;  // 使用安全时间戳，避免回拨导致限流失效
 }
 ```
 
@@ -783,9 +846,10 @@ spring:
     - 已拆分 `qratelimiter-core`，让核心限流能力脱离 Spring Boot 也可复用
     - `spring-boot-autoconfigure` 专注自动配置、AOP、Properties、Redis 集成与 Web 异常处理
     - `starter` 作为更薄的依赖聚合入口
-- [ ] **独立测试模块**
-    - 增加专门的测试 / 集成测试模块，系统覆盖 core、Local、Redis、Boot2、Boot3 与组合矩阵
-    - 将 example 保持为演示模块，测试模块承担质量兜底职责
+- [x] **独立测试模块**
+    - 已新增 `qratelimiter-test`，系统覆盖 core-only、Local、Redis、Boot2、Boot3 与组合矩阵
+    - example 保持为演示模块，测试模块承担质量兜底职责
+    - 已提供可选 `-Pstress` 并发压力验证入口，覆盖 core-only 与 starter 矩阵
 - [ ] **动态配置刷新**
     - 支持运行时修改限流参数
     - 集成 Spring Cloud Config / Nacos
