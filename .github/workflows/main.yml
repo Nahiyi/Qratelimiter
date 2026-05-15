@@ -101,7 +101,60 @@ jobs:
             **/target/surefire-reports/
             **/target/failsafe-reports/
 
-  # Job 3: 代码风格与质量检查（仅在 Ubuntu + JDK 8 上运行一次即可）
+  # Job 3: 可选压力测试 Profile 验证（确保 profile 可用，但不混入默认 Maven 生命周期）
+  stress-verification:
+    name: Stress profile verification (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    env:
+      QRL_REDIS_TESTS_ENABLED: true
+      QRL_REDIS_HOST: localhost
+      QRL_REDIS_PORT: "6379"
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: "Boot 2 / JDK 8"
+            java: 8
+            maven_profile: "-Pstress"
+          - name: "Boot 3 / JDK 17"
+            java: 17
+            maven_profile: "-Pstress,spring-boot-3"
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Verify optional stress profile
+        run: mvn -B ${{ matrix.maven_profile }} -pl qratelimiter-test -am test --file pom.xml
+
+      - name: Upload stress test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-test-reports-jdk${{ matrix.java }}
+          path: |
+            **/target/surefire-reports/
+            **/target/failsafe-reports/
+
+  # Job 4: 代码风格与质量检查（仅在 Ubuntu + JDK 8 上运行一次即可）
   lint:
     name: Code quality check
     runs-on: ubuntu-latest
@@ -120,7 +173,7 @@ jobs:
       - name: Validate project structure
         run: mvn -B validate --file pom.xml
 
-  # Job 4: 构建产物检查，确保 Starter 可正常打包
+  # Job 5: 构建产物检查，确保 Starter 可正常打包
   package:
     name: Package verification
     runs-on: ubuntu-latest
