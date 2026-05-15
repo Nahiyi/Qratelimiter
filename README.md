@@ -61,8 +61,8 @@
 - **多算法支持**：滑动窗口日志 / 滑动窗口计数器 / 令牌桶 / 漏桶
 - **多存储支持**：本地内存 / Redis 分布式存储
 - **Spring Boot 2 / 3 兼容**：同时支持 `spring.factories` 与 `AutoConfiguration.imports`
-- **极致性能**：环形缓冲区 + 二分查找，时间复杂度 O(log n)
-- **精准限流**：基于滑动窗口，支持毫秒级时间粒度
+- **高性能默认实现**：默认滑动窗口日志基于环形缓冲区 + 二分查找，时间复杂度 O(log n)
+- **多模型限流**：同时支持精确滑动窗口、近似滑动窗口、令牌桶与漏桶语义
 - **开箱即用**：引入 starter 依赖即可使用，内置全局异常处理器
 - **高度可靠**：线程安全，支持时钟回拨检测
 - **灵活配置**：支持全局配置 + 方法级自定义配置
@@ -77,12 +77,12 @@
 
 | 特性       | 说明                               |
 |----------|----------------------------------|
-| **高性能**  | 环形缓冲区 + 二分查找，时间复杂度 O(log n)      |
-| **低内存**  | 每个限流器仅需 `freq * 1.5` 个 long 数组元素 |
-| **精准限流** | 滑动窗口算法，支持任意时间粒度（毫秒级）             |
+| **高性能**  | 默认滑动窗口日志使用环形缓冲区 + 二分查找，时间复杂度 O(log n) |
+| **低内存**  | 本地状态按 key 缓存，滑动窗口日志仅保存固定容量时间戳数组 |
+| **多模型限流** | 支持精确滑动窗口、近似滑动窗口、令牌桶与漏桶             |
 | **自动管理** | 基于 Caffeine Cache，自动清理过期限流器实例    |
 | **灵活隔离** | 支持方法级隔离（默认）和全局限流两种模式             |
-| **动态配置** | 支持全局配置和方法级自定义配置覆盖                |
+| **配置覆盖** | 支持全局配置和方法级自定义配置覆盖                |
 
 ### 技术亮点
 
@@ -164,7 +164,7 @@ clazs:
     capacity: 150                    # 容量/精度参数
     algorithm: sliding-window-log    # 限流算法：sliding-window-log / sliding-window-counter / token-bucket / leaky-bucket
     storage: local                   # 存储类型：local=本地内存，redis=分布式
-    cache-expire-after-access-minutes: 30   # 缓存过期时间
+    cache-expire-after-access-minutes: 1440  # 缓存过期时间
     cache-maximum-size: 1000                 # 最大缓存数量
 ```
 
@@ -508,6 +508,8 @@ Member: 时间戳:唯一ID（解决并发唯一性问题）
 
 ## 性能测试
 
+以下数据是本地模式的参考结果，用于说明默认滑动窗口日志实现的内存量级；不同 JDK、机器、算法、缓存配置和 key 分布下会有差异。
+
 ### 测试环境
 
 - **CPU**: Intel Core i7-13620H
@@ -545,7 +547,7 @@ Member: 时间戳:唯一ID（解决并发唯一性问题）
 - [`qratelimiter-spring-boot-example/README_zh.md`](qratelimiter-spring-boot-example/README_zh.md)
 - [`qratelimiter-spring-boot-example/README_en.md`](qratelimiter-spring-boot-example/README_en.md)
 
-需要说明的是，example 模块的定位是“演示 starter 如何被真实项目依赖和使用”。它可以辅助本地手工验证，但不会替代后续计划中的独立测试模块。
+需要说明的是，example 模块的定位是“演示 starter 如何被真实项目依赖和使用”。它可以辅助本地手工验证，但不替代 `qratelimiter-test` 独立测试模块承担的兼容性与压力验证职责。
 
 ---
 
@@ -766,14 +768,13 @@ interval: 3600000  # 每小时 10 次
 
 QRateLimiter 内置**时钟回拨检测**，当检测到时钟回拨时会：
 
-1. 记录警告日志
-2. 使用旧的时间戳继续限流
-3. 防止限流失效
+1. 使用旧的时间戳或服务端时间继续限流
+2. 防止本地时钟回拨导致窗口或速率计算异常
+3. Redis 实现统一使用 Redis 服务器时间，避免多实例本地时钟不一致
 
 ```java
-if (currentTimestamp<lastTimestamp) {
-    log.warn("检测到时钟回拨：旧={}，新={}",lastTimestamp, currentTimestamp);
-    currentTimestamp =lastTimestamp;  // 使用旧时间戳，流量高并发下时间依旧安全
+if (currentTimestamp < lastTimestamp) {
+    currentTimestamp = lastTimestamp;  // 使用安全时间戳，避免回拨导致限流失效
 }
 ```
 
