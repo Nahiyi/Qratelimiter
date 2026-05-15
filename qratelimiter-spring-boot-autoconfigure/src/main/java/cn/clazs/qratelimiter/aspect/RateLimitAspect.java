@@ -5,11 +5,12 @@ import cn.clazs.qratelimiter.annotation.RateLimitScope;
 import cn.clazs.qratelimiter.core.RateLimiter;
 import cn.clazs.qratelimiter.exception.RateLimitException;
 import cn.clazs.qratelimiter.registry.RateLimitRegistry;
-import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.DefaultParameterNameDiscoverer;
 import org.springframework.core.ParameterNameDiscoverer;
@@ -62,9 +63,10 @@ import java.lang.reflect.Method;
  * @author clazs
  * @since 1.0.0
  */
-@Slf4j
 @Aspect
 public class RateLimitAspect {
+
+    private static final Logger log = LoggerFactory.getLogger(RateLimitAspect.class);
 
     /**
      * 限流器注册中心
