@@ -2,17 +2,17 @@ package cn.clazs.qratelimiter.management;
 
 import cn.clazs.qratelimiter.core.RateLimiter;
 import cn.clazs.qratelimiter.core.RateLimiterOptions;
-import cn.clazs.qratelimiter.enums.RateLimitAlgorithm;
 import cn.clazs.qratelimiter.factory.LimiterExecutorFactory;
-import cn.clazs.qratelimiter.management.RateLimitRefreshStrategy;
 import cn.clazs.qratelimiter.properties.RateLimiterProperties;
 import cn.clazs.qratelimiter.registry.RateLimitRegistry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("RateLimiterManagementController")
@@ -81,7 +81,7 @@ class RateLimiterManagementControllerTest {
         request.setFreq(3);
         request.setInterval(60_000L);
         request.setCapacity(4);
-        request.setAlgorithm(RateLimitAlgorithm.SLIDING_WINDOW_LOG);
+        request.setAlgorithm("sliding-window-log");
         request.setStrategy(RateLimitRefreshStrategy.CLEAR_CACHE_AND_APPLY);
 
         RateLimiterOptions refreshed = controller.refresh(request);
@@ -89,6 +89,44 @@ class RateLimiterManagementControllerTest {
         assertEquals(3, refreshed.getFreq());
         assertEquals(0L, registry.getCurrentCacheSize());
         assertEquals(3, registry.getLimiter("refresh:old").getConfig().getFreq());
+    }
+
+    @Test
+    @DisplayName("refresh endpoint accepts enum-style algorithm names for compatibility")
+    void refreshEndpointAcceptsEnumStyleAlgorithmNamesForCompatibility() {
+        RateLimiterManagementController controller = new RateLimiterManagementController(newRegistry());
+        RateLimiterManagementController.RefreshRequest request = new RateLimiterManagementController.RefreshRequest();
+        request.setAlgorithm("TOKEN_BUCKET");
+        request.setCapacity(4);
+
+        RateLimiterOptions refreshed = controller.refresh(request);
+
+        assertEquals("token-bucket", refreshed.getAlgorithm().getCode());
+    }
+
+    @Test
+    @DisplayName("refresh endpoint treats null request as no-op refresh")
+    void refreshEndpointTreatsNullRequestAsNoOpRefresh() {
+        RateLimiterManagementController controller = new RateLimiterManagementController(newRegistry());
+
+        RateLimiterOptions refreshed = controller.refresh(null);
+
+        assertEquals(1, refreshed.getFreq());
+        assertEquals(60_000L, refreshed.getInterval());
+        assertEquals(2, refreshed.getCapacity());
+    }
+
+    @Test
+    @DisplayName("refresh endpoint rejects invalid values as bad request")
+    void refreshEndpointRejectsInvalidValuesAsBadRequest() {
+        RateLimiterManagementController controller = new RateLimiterManagementController(newRegistry());
+        RateLimiterManagementController.RefreshRequest request = new RateLimiterManagementController.RefreshRequest();
+        request.setAlgorithm("not-a-real-algorithm");
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> controller.refresh(request));
+
+        assertTrue(exception.getMessage().contains("400"));
     }
 
     private RateLimitRegistry newRegistry() {

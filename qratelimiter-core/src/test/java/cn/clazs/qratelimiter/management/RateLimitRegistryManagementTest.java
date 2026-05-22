@@ -1,7 +1,11 @@
 package cn.clazs.qratelimiter.management;
 
+import cn.clazs.qratelimiter.core.LimiterExecutor;
 import cn.clazs.qratelimiter.core.RateLimiter;
+import cn.clazs.qratelimiter.core.RateLimiterConfig;
 import cn.clazs.qratelimiter.core.RateLimiterOptions;
+import cn.clazs.qratelimiter.enums.RateLimitAlgorithm;
+import cn.clazs.qratelimiter.enums.RateLimitStorage;
 import cn.clazs.qratelimiter.factory.LimiterExecutorFactory;
 import cn.clazs.qratelimiter.registry.RateLimitRegistry;
 import org.junit.jupiter.api.DisplayName;
@@ -10,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("Rate limiter management model")
@@ -74,6 +79,28 @@ class RateLimitRegistryManagementTest {
 
         assertTrue(registry.getLimiter("reset:first").allowRequest("reset:first", 1, 60_000L, 2));
         assertTrue(registry.getLimiter("reset:second").allowRequest("reset:second", 1, 60_000L, 2));
+    }
+
+    @Test
+    @DisplayName("clear operations tolerate custom executors without reset support")
+    void clearOperationsTolerateCustomExecutorsWithoutResetSupport() {
+        LimiterExecutorFactory factory = new LimiterExecutorFactory();
+        factory.registerProvider(RateLimitAlgorithm.SLIDING_WINDOW_LOG, RateLimitStorage.LOCAL,
+                NoResetExecutor::new);
+        RateLimiterOptions options = RateLimiterOptions.builder()
+                .freq(1)
+                .interval(60_000L)
+                .capacity(2)
+                .cacheExpireAfterAccessMinutes(10L)
+                .cacheMaximumSize(100L)
+                .build();
+        RateLimitRegistry registry = new RateLimitRegistry(options, factory);
+
+        registry.getLimiter("custom:no-reset");
+
+        assertDoesNotThrow(() -> registry.removeLimiter("custom:no-reset"));
+        registry.getLimiter("custom:no-reset-again");
+        assertDoesNotThrow(registry::clearAll);
     }
 
     @Test
@@ -143,5 +170,13 @@ class RateLimitRegistryManagementTest {
                 .cacheMaximumSize(100L)
                 .build();
         return new RateLimitRegistry(options, new LimiterExecutorFactory(options));
+    }
+
+    private static class NoResetExecutor implements LimiterExecutor {
+        @Override
+        public boolean tryAcquire(String key, int freq, long interval, int capacity) {
+            RateLimiterConfig.validate(RateLimitAlgorithm.SLIDING_WINDOW_LOG, freq, interval, capacity);
+            return true;
+        }
     }
 }

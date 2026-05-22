@@ -105,19 +105,14 @@ public class RateLimitRegistry {
     public void removeLimiter(String key) {
         if (key != null && !key.trim().isEmpty()) {
             RateLimiter limiter = limiterCache.getIfPresent(key);
-            if (limiter instanceof DefaultRateLimiter) {
-                ((DefaultRateLimiter) limiter).resetState();
-            }
+            resetIfSupported(limiter);
             limiterCache.invalidate(key);
         }
     }
 
     public void clearAll() {
         for (Map.Entry<String, RateLimiter> entry : limiterCache.asMap().entrySet()) {
-            RateLimiter limiter = entry.getValue();
-            if (limiter instanceof DefaultRateLimiter) {
-                ((DefaultRateLimiter) limiter).resetState();
-            }
+            resetIfSupported(entry.getValue());
         }
         limiterCache.invalidateAll();
     }
@@ -203,6 +198,16 @@ public class RateLimitRegistry {
     private RateLimiter createLimiter(String key, RateLimiterConfig config) {
         LimiterExecutor executor = executorFactory.getExecutor(config.getAlgorithm(), config.getStorage());
         return new DefaultRateLimiter(executor, key, config, aggregateStats);
+    }
+
+    private void resetIfSupported(RateLimiter limiter) {
+        if (limiter instanceof DefaultRateLimiter) {
+            try {
+                ((DefaultRateLimiter) limiter).resetState();
+            } catch (UnsupportedOperationException ignored) {
+                // Custom executors may not support runtime reset; cache invalidation is still safe.
+            }
+        }
     }
 
     private void validateKey(String key) {

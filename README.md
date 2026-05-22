@@ -347,8 +347,8 @@ clazs:
   "freq": 200,
   "interval": 60000,
   "capacity": 300,
-  "algorithm": "SLIDING_WINDOW_LOG",
-  "storage": "LOCAL",
+  "algorithm": "sliding-window-log",
+  "storage": "local",
   "strategy": "CLEAR_CACHE_AND_APPLY"
 }
 ```
