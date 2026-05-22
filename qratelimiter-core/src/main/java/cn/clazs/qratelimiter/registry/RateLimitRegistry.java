@@ -6,9 +6,16 @@ import cn.clazs.qratelimiter.core.RateLimiter;
 import cn.clazs.qratelimiter.core.RateLimiterConfig;
 import cn.clazs.qratelimiter.core.RateLimiterOptions;
 import cn.clazs.qratelimiter.factory.LimiterExecutorFactory;
+import cn.clazs.qratelimiter.management.RateLimitRefreshStrategy;
+import cn.clazs.qratelimiter.management.RateLimitSnapshot;
+import cn.clazs.qratelimiter.management.RateLimitStats;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -21,9 +28,10 @@ import java.util.concurrent.atomic.AtomicLong;
 public class RateLimitRegistry {
 
     private final Cache<String, RateLimiter> limiterCache;
-    private final RateLimiterOptions options;
+    private volatile RateLimiterOptions options;
     private final LimiterExecutorFactory executorFactory;
     private final AtomicLong totalCreatedLimiters = new AtomicLong(0);
+    private final RateLimitStats aggregateStats = new RateLimitStats();
 
     public RateLimitRegistry(RateLimiterOptions options, LimiterExecutorFactory executorFactory) {
         if (options == null) {
@@ -45,6 +53,22 @@ public class RateLimitRegistry {
 
     public RateLimiterOptions getOptions() {
         return RateLimiterOptions.copyOf(options);
+    }
+
+    public void refreshOptions(RateLimiterOptions newOptions, RateLimitRefreshStrategy strategy) {
+        if (newOptions == null) {
+            throw new IllegalArgumentException("newOptions cannot be null");
+        }
+        if (strategy == null) {
+            throw new IllegalArgumentException("strategy cannot be null");
+        }
+
+        RateLimiterOptions safeOptions = RateLimiterOptions.copyOf(newOptions);
+        safeOptions.validate();
+        this.options = safeOptions;
+        if (strategy == RateLimitRefreshStrategy.CLEAR_CACHE_AND_APPLY) {
+            clearAll();
+        }
     }
 
     public RateLimiter getLimiter(String key) {
@@ -80,11 +104,16 @@ public class RateLimitRegistry {
 
     public void removeLimiter(String key) {
         if (key != null && !key.trim().isEmpty()) {
+            RateLimiter limiter = limiterCache.getIfPresent(key);
+            resetIfSupported(limiter);
             limiterCache.invalidate(key);
         }
     }
 
     public void clearAll() {
+        for (Map.Entry<String, RateLimiter> entry : limiterCache.asMap().entrySet()) {
+            resetIfSupported(entry.getValue());
+        }
         limiterCache.invalidateAll();
     }
 
@@ -118,6 +147,42 @@ public class RateLimitRegistry {
         );
     }
 
+    public RateLimitSnapshot snapshot() {
+        List<RateLimitSnapshot.LimiterSnapshot> limiterSnapshots = new ArrayList<>();
+        for (Map.Entry<String, RateLimiter> entry : limiterCache.asMap().entrySet()) {
+            RateLimiter limiter = entry.getValue();
+            if (!(limiter instanceof DefaultRateLimiter)) {
+                continue;
+            }
+
+            DefaultRateLimiter defaultLimiter = (DefaultRateLimiter) limiter;
+            long limiterAllowed = defaultLimiter.getStats().getAllowedRequests();
+            long limiterRejected = defaultLimiter.getStats().getRejectedRequests();
+
+            RateLimiterConfig config = defaultLimiter.getConfig();
+            limiterSnapshots.add(new RateLimitSnapshot.LimiterSnapshot(
+                    defaultLimiter.getKey(),
+                    config.getAlgorithm().getCode(),
+                    config.getStorage().getCode(),
+                    config.getFreq(),
+                    config.getInterval(),
+                    config.getCapacity(),
+                    defaultLimiter.getCurrentCount(),
+                    limiterAllowed,
+                    limiterRejected
+            ));
+        }
+
+        limiterSnapshots.sort(Comparator.comparing(RateLimitSnapshot.LimiterSnapshot::getKey));
+        return new RateLimitSnapshot(
+                getCurrentCacheSize(),
+                getTotalCreatedLimiters(),
+                aggregateStats.getAllowedRequests(),
+                aggregateStats.getRejectedRequests(),
+                limiterSnapshots
+        );
+    }
+
     private RateLimiter createDefaultLimiter(String key) {
         RateLimiterConfig config = RateLimiterConfig.builder()
                 .algorithm(options.getAlgorithm())
@@ -132,7 +197,17 @@ public class RateLimitRegistry {
 
     private RateLimiter createLimiter(String key, RateLimiterConfig config) {
         LimiterExecutor executor = executorFactory.getExecutor(config.getAlgorithm(), config.getStorage());
-        return new DefaultRateLimiter(executor, key, config);
+        return new DefaultRateLimiter(executor, key, config, aggregateStats);
+    }
+
+    private void resetIfSupported(RateLimiter limiter) {
+        if (limiter instanceof DefaultRateLimiter) {
+            try {
+                ((DefaultRateLimiter) limiter).resetState();
+            } catch (UnsupportedOperationException ignored) {
+                // Custom executors may not support runtime reset; cache invalidation is still safe.
+            }
+        }
     }
 
     private void validateKey(String key) {

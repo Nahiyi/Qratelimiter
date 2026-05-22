@@ -5,7 +5,7 @@
 
     <groupId>cn.clazs</groupId>
     <artifactId>qratelimiter-parent</artifactId>
-    <version>1.5.1</version>
+    <version>1.6.0</version>
     <packaging>pom</packaging>
 
     <name>qratelimiter-parent</name>
@@ -28,6 +28,7 @@
         <junit.version>5.11.0</junit.version>
         <spring-boot.version>2.7.18</spring-boot.version>
         <caffeine.version>2.9.3</caffeine.version>
+        <micrometer.version>1.9.17</micrometer.version>
     </properties>
 
     <dependencyManagement>
@@ -41,6 +42,11 @@
                 <groupId>com.github.ben-manes.caffeine</groupId>
                 <artifactId>caffeine</artifactId>
                 <version>${caffeine.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.micrometer</groupId>
+                <artifactId>micrometer-core</artifactId>
+                <version>${micrometer.version}</version>
             </dependency>
             <dependency>
                 <groupId>cn.clazs</groupId>

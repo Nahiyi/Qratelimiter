@@ -10,6 +10,7 @@ import cn.clazs.qratelimiter.executor.redis.RedisSlidingWindowCounterExecutor;
 import cn.clazs.qratelimiter.executor.redis.RedisSlidingWindowLogExecutor;
 import cn.clazs.qratelimiter.executor.redis.RedisTokenBucketExecutor;
 import cn.clazs.qratelimiter.factory.LimiterExecutorFactory;
+import cn.clazs.qratelimiter.management.RateLimiterManagementController;
 import cn.clazs.qratelimiter.properties.RateLimiterProperties;
 import cn.clazs.qratelimiter.registry.RateLimitRegistry;
 import org.slf4j.Logger;
@@ -257,4 +258,13 @@ public class RateLimiterAutoConfiguration {
         log.info("DefaultRateLimitExceptionHandler Bean 创建成功");
         return handler;
     }
+
+    @Bean
+    @ConditionalOnClass(name = "org.springframework.web.servlet.DispatcherServlet")
+    @ConditionalOnProperty(prefix = "clazs.ratelimiter.management", name = "enabled", havingValue = "true")
+    @ConditionalOnMissingBean
+    public RateLimiterManagementController rateLimiterManagementController(RateLimitRegistry registry) {
+        return new RateLimiterManagementController(registry);
+    }
+
 }

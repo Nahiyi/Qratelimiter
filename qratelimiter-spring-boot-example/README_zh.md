@@ -4,6 +4,20 @@
 
 本模块适用于本地验证、功能演示，以及在正式发布 starter 之前的上手检查。
 
+运行时管理接口默认关闭。如需本地验证 `1.6.0` 的管理能力，可以启用：
+
+```yaml
+clazs:
+  ratelimiter:
+    management:
+      enabled: true
+      base-path: /qratelimiter
+```
+
+启用后可访问 `GET /qratelimiter/stats`、`GET /qratelimiter/config`、
+`POST /qratelimiter/config`、`DELETE /qratelimiter/cache` 和
+`DELETE /qratelimiter/cache/{key}`。
+
 ## 功能覆盖
 
 示例包含以下端点：

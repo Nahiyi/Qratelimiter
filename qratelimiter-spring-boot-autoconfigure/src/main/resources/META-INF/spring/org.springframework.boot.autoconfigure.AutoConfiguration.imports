@@ -1,1 +1,2 @@
 cn.clazs.qratelimiter.autoconfigure.RateLimiterAutoConfiguration
+cn.clazs.qratelimiter.autoconfigure.RateLimiterMetricsAutoConfiguration
