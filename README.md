@@ -18,6 +18,7 @@
 - [特性](#特性)
 - [快速开始](#快速开始)
 - [配置说明](#配置说明)
+- [运行时管理](#运行时管理)
 - [使用示例](#使用示例)
 - [核心原理](#核心原理)
 - [性能测试](#性能测试)
@@ -34,7 +35,7 @@
 
 **QRateLimiter** 是一款轻量级限流器，核心能力已经拆分为不依赖 Spring Boot 的 `qratelimiter-core`，Spring Boot 用户仍然可以通过 starter 获得注解式开箱即用体验。
 
-当前 release 版本：`1.5.1`
+当前 release 版本：`1.6.0`
 
 当前版本已验证：
 
@@ -66,6 +67,8 @@
 - **开箱即用**：引入 starter 依赖即可使用，内置全局异常处理器
 - **高度可靠**：线程安全，支持时钟回拨检测
 - **灵活配置**：支持全局配置 + 方法级自定义配置
+- **运行时管理基础**：可选启用统计查询、配置刷新和缓存清理接口
+- **Micrometer 指标**：可选暴露低基数运行指标，便于接入现有监控体系
 - **SpEL 字符串字面量**：支持 `@DoRateLimit(key = "'constant_key'")`
 - **零侵入**：基于注解和 AOP，对业务代码零侵入
 
@@ -117,7 +120,7 @@ mvn install
 <dependency>
     <groupId>cn.clazs</groupId>
     <artifactId>qratelimiter-spring-boot-starter</artifactId>
-    <version>1.5.1</version>
+    <version>1.6.0</version>
 </dependency>
 ```
 
@@ -129,7 +132,7 @@ mvn install
 <dependency>
     <groupId>cn.clazs</groupId>
     <artifactId>qratelimiter-core</artifactId>
-    <version>1.5.1</version>
+    <version>1.6.0</version>
 </dependency>
 ```
 
@@ -166,6 +169,9 @@ clazs:
     storage: local                   # 存储类型：local=本地内存，redis=分布式
     cache-expire-after-access-minutes: 1440  # 缓存过期时间
     cache-maximum-size: 1000                 # 最大缓存数量
+    management:
+      enabled: false                 # 是否启用运行时管理接口
+      base-path: /qratelimiter       # 管理接口基础路径
 ```
 
 ### 2. 使用注解
@@ -286,6 +292,8 @@ public class GlobalExceptionHandler {
 | `clazs.ratelimiter.storage`                           | 存储类型        | `local`              | `local`, `redis`     | 单机用 local，分布式用 redis |
 | `clazs.ratelimiter.cache-expire-after-access-minutes` | 缓存过期时间（分钟）  | `1440`               | -                    | 根据业务调整               |
 | `clazs.ratelimiter.cache-maximum-size`                | 最大缓存数量      | `10000`              | -                    | 防止内存溢出               |
+| `clazs.ratelimiter.management.enabled`                | 是否启用运行时管理接口 | `false`              | `true`, `false`      | 生产环境建议配合鉴权或内网暴露 |
+| `clazs.ratelimiter.management.base-path`              | 管理接口基础路径   | `/qratelimiter`      | -                    | 可按应用管理路径规范调整       |
 
 #### Redis 存储配置示例
 
@@ -300,6 +308,65 @@ spring:
     port: 6379
     database: 0
 ```
+
+### 运行时管理
+
+从 `1.6.0` 开始，QRateLimiter 提供默认关闭的运行时管理基础能力。它用于本地排查、运维接入和后续配置中心集成前的基础能力沉淀。
+
+启用方式：
+
+```yaml
+clazs:
+  ratelimiter:
+    management:
+      enabled: true
+      base-path: /qratelimiter
+```
+
+启用后会注册以下端点：
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/qratelimiter/stats` | 查看注册中心、缓存和请求统计快照 |
+| `GET` | `/qratelimiter/config` | 查看当前全局默认限流配置 |
+| `POST` | `/qratelimiter/config` | 刷新全局默认限流配置 |
+| `DELETE` | `/qratelimiter/cache` | 清空全部限流器缓存和状态 |
+| `DELETE` | `/qratelimiter/cache/{key}` | 清理指定业务 key 的限流器缓存和状态 |
+
+`POST /qratelimiter/config` 支持两种刷新策略：
+
+| 策略 | 说明 |
+|------|------|
+| `APPLY_TO_NEW_LIMITERS_ONLY` | 只影响之后新创建的限流器，已有限流器继续使用创建时的执行器和状态 |
+| `CLEAR_CACHE_AND_APPLY` | 刷新默认配置并清空当前缓存，让后续请求按新配置重新创建限流器 |
+
+示例请求：
+
+```json
+{
+  "freq": 200,
+  "interval": 60000,
+  "capacity": 300,
+  "algorithm": "SLIDING_WINDOW_LOG",
+  "storage": "LOCAL",
+  "strategy": "CLEAR_CACHE_AND_APPLY"
+}
+```
+
+> 管理端点默认关闭。生产环境启用时，建议通过网关、内网、Spring Security 或其他统一鉴权方式限制访问范围。
+
+### Micrometer 指标
+
+当应用引入 Micrometer 时，`1.6.0` 会自动注册低基数指标：
+
+| 指标名 | 类型 | 说明 |
+|--------|------|------|
+| `qratelimiter.limiters.cache.size` | Gauge | 当前缓存中的限流器数量 |
+| `qratelimiter.limiters.created.total` | Gauge | 注册中心累计创建的限流器数量 |
+| `qratelimiter.requests.allowed` | FunctionCounter | 累计放行请求数 |
+| `qratelimiter.requests.rejected` | FunctionCounter | 累计拒绝请求数 |
+
+默认不会按业务 key 添加 tag，避免高基数指标拖垮监控系统。可视化面板、Nacos / Spring Cloud Config 动态接入仍属于后续版本范围。
 
 ### 注解配置（@DoRateLimit）
 
@@ -850,11 +917,17 @@ spring:
     - 已新增 `qratelimiter-test`，系统覆盖 core-only、Local、Redis、Boot2、Boot3 与组合矩阵
     - example 保持为演示模块，测试模块承担质量兜底职责
     - 已提供可选 `-Pstress` 并发压力验证入口，覆盖 core-only 与 starter 矩阵
-- [ ] **动态配置刷新**
-    - 支持运行时修改限流参数
+- [x] **运行时管理基础**
+    - 已支持运行时查看限流统计快照
+    - 已支持刷新全局默认限流配置
+    - 已支持按 key 或全量清理限流器缓存与状态
+- [x] **监控与指标基础**
+    - 已支持 Micrometer 低基数指标
+    - 默认不按业务 key 添加 tag，避免高基数风险
+- [ ] **配置中心集成**
     - 集成 Spring Cloud Config / Nacos
-    - 提供管理接口查看限流统计
-- [ ] **监控与指标**
+    - 在配置变更事件中复用现有刷新策略
+- [ ] **可视化面板**
     - 限流效果可视化面板
 
 ---

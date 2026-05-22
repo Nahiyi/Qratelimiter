@@ -178,7 +178,7 @@ class RateLimiterAutoConfigurationTest {
     }
 
     @Test
-    @DisplayName("注解检查：Spring Boot 3 自动配置导入文件应该注册当前配置类")
+    @DisplayName("注解检查：Spring Boot 3 自动配置导入文件应该注册自动配置类")
     void testSpringBoot3AutoConfigurationImportsExists() throws IOException {
         String importsPath = "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports";
 
@@ -195,6 +195,8 @@ class RateLimiterAutoConfigurationTest {
 
             assertTrue(autoConfigurations.contains(RateLimiterAutoConfiguration.class.getName()),
                     "Spring Boot 3 自动配置导入文件应该包含 RateLimiterAutoConfiguration");
+            assertTrue(autoConfigurations.contains(RateLimiterMetricsAutoConfiguration.class.getName()),
+                    "Spring Boot 3 自动配置导入文件应该包含 RateLimiterMetricsAutoConfiguration");
         }
     }
 

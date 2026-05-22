@@ -79,6 +79,11 @@ public class RateLimiterProperties {
      */
     private RedisConfig redis = new RedisConfig();
 
+    /**
+     * Runtime management endpoint configuration.
+     */
+    private ManagementConfig management = new ManagementConfig();
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -149,6 +154,14 @@ public class RateLimiterProperties {
 
     public void setRedis(RedisConfig redis) {
         this.redis = redis;
+    }
+
+    public ManagementConfig getManagement() {
+        return management;
+    }
+
+    public void setManagement(ManagementConfig management) {
+        this.management = management;
     }
 
     /**
@@ -241,6 +254,27 @@ public class RateLimiterProperties {
 
         public void setScriptLocation(String scriptLocation) {
             this.scriptLocation = scriptLocation;
+        }
+    }
+
+    public static class ManagementConfig {
+        private boolean enabled = false;
+        private String basePath = "/qratelimiter";
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getBasePath() {
+            return basePath;
+        }
+
+        public void setBasePath(String basePath) {
+            this.basePath = basePath;
         }
     }
 }

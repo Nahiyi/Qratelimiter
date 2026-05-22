@@ -8,6 +8,21 @@ and Spring Boot 3.
 The module is intended for local verification, feature demonstrations, and
 manual checks before releasing the starter.
 
+Runtime management endpoints are disabled by default. To try the 1.6.0
+management surface locally, enable:
+
+```yaml
+clazs:
+  ratelimiter:
+    management:
+      enabled: true
+      base-path: /qratelimiter
+```
+
+Then call `GET /qratelimiter/stats`, `GET /qratelimiter/config`,
+`POST /qratelimiter/config`, `DELETE /qratelimiter/cache`, or
+`DELETE /qratelimiter/cache/{key}`.
+
 ## What It Covers
 
 The example includes endpoints for:
