@@ -24,4 +24,5 @@
 # QRateLimiter Auto-Configuration
 # Spring Boot will automatically load this configuration class
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-cn.clazs.qratelimiter.autoconfigure.RateLimiterAutoConfiguration
+cn.clazs.qratelimiter.autoconfigure.RateLimiterAutoConfiguration,\
+cn.clazs.qratelimiter.autoconfigure.RateLimiterMetricsAutoConfiguration

@@ -15,6 +15,9 @@ clazs:
     storage: local
     cache-expire-after-access-minutes: 1440
     cache-maximum-size: 10000
+    management:
+      enabled: false
+      base-path: /qratelimiter
     redis:
       key-prefix: "qratelimiter:example:"
 
