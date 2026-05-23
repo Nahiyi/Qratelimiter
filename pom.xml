@@ -5,7 +5,7 @@
 
     <groupId>cn.clazs</groupId>
     <artifactId>qratelimiter-parent</artifactId>
-    <version>1.6.0</version>
+    <version>1.7.0</version>
     <packaging>pom</packaging>
 
     <name>qratelimiter-parent</name>
@@ -16,6 +16,7 @@
         <module>qratelimiter-core</module>
         <module>qratelimiter-spring-boot-autoconfigure</module>
         <module>qratelimiter-spring-boot-starter</module>
+        <module>qratelimiter-dashboard</module>
         <module>qratelimiter-spring-boot-example</module>
         <module>qratelimiter-test</module>
     </modules>
@@ -51,6 +52,11 @@
             <dependency>
                 <groupId>cn.clazs</groupId>
                 <artifactId>qratelimiter-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>cn.clazs</groupId>
+                <artifactId>qratelimiter-dashboard</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

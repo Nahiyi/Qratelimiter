@@ -1,0 +1,154 @@
+@import "tailwindcss";
+
+html {
+  background: #f5f7fb;
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  overflow: hidden;
+}
+
+#root {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.dashboard-root {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.dashboard-header {
+  height: 80px;
+}
+
+.dashboard-content {
+  height: calc(100vh - 80px);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.dashboard-alert {
+  min-width: 0;
+}
+
+.dashboard-summary,
+.dashboard-workspace,
+.dashboard-table-card,
+.dashboard-config-card {
+  min-width: 0;
+}
+
+.dashboard-summary .ant-card-body {
+  padding: 12px 18px;
+}
+
+.dashboard-summary .ant-card {
+  height: 88px;
+}
+
+.dashboard-workspace {
+  overflow: hidden;
+}
+
+.dashboard-config-card,
+.dashboard-table-card {
+  height: 100%;
+  overflow: hidden;
+}
+
+.dashboard-config-card .ant-card-body,
+.dashboard-table-card .ant-card-body {
+  overflow: hidden;
+}
+
+.dashboard-config-card .ant-card-body {
+  height: calc(100% - 57px);
+  padding: 10px 16px;
+}
+
+.dashboard-table-card .ant-card-body {
+  height: calc(100% - 57px);
+  padding: 14px 16px;
+}
+
+.dashboard-table-card .ant-table-wrapper,
+.dashboard-table-card .ant-spin-nested-loading,
+.dashboard-table-card .ant-spin-container {
+  min-width: 0;
+  height: 100%;
+}
+
+.dashboard-table-card .ant-table {
+  max-width: 100%;
+}
+
+.dashboard-paths-compact {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 10px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px solid #edf1f7;
+  border-radius: 6px;
+  background: #fbfcff;
+}
+
+.dashboard-paths-compact code {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-config-form .ant-form-item {
+  margin-bottom: 8px;
+}
+
+.dashboard-config-form .ant-form-item-label {
+  padding-bottom: 3px;
+}
+
+.dashboard-strategy-row {
+  align-items: end;
+}
+
+.dashboard-strategy-row .ant-form-item {
+  margin-bottom: 0;
+}
+
+.dashboard-save-button {
+  height: 24px;
+  margin-bottom: 0;
+}
+
+.dashboard-key-cell {
+  display: inline-block;
+  max-width: 160px;
+}
+
+.dashboard-table-card .ant-table-cell {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+
+.ant-card {
+  box-shadow: none;
+}
+
+.ant-card-head {
+  min-height: 48px;
+}
+
+.ant-table-wrapper .ant-table {
+  scrollbar-color: #c7d0dd transparent;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-workspace {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+}

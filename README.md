@@ -35,7 +35,7 @@
 
 **QRateLimiter** 是一款轻量级限流器，核心能力已经拆分为不依赖 Spring Boot 的 `qratelimiter-core`，Spring Boot 用户仍然可以通过 starter 获得注解式开箱即用体验。
 
-当前 release 版本：`1.6.0`
+当前 release 版本：`1.7.0`
 
 当前版本已验证：
 
@@ -120,7 +120,7 @@ mvn install
 <dependency>
     <groupId>cn.clazs</groupId>
     <artifactId>qratelimiter-spring-boot-starter</artifactId>
-    <version>1.6.0</version>
+    <version>1.7.0</version>
 </dependency>
 ```
 
@@ -132,7 +132,7 @@ mvn install
 <dependency>
     <groupId>cn.clazs</groupId>
     <artifactId>qratelimiter-core</artifactId>
-    <version>1.6.0</version>
+    <version>1.7.0</version>
 </dependency>
 ```
 
@@ -142,6 +142,7 @@ mvn install
 
 - `qratelimiter-spring-boot-autoconfigure`
 - `qratelimiter-spring-boot-starter`
+- `qratelimiter-dashboard`
 - `qratelimiter-spring-boot-example`
 - `qratelimiter-core`
 - `qratelimiter-test`
@@ -151,6 +152,7 @@ mvn install
 - `starter` 作为对外推荐引入的入口依赖
 - `core` 承载不依赖 Spring Boot 的核心 API、注册中心和本地算法实现
 - `autoconfigure` 承载自动装配、注解 AOP、异常处理、Redis 执行器和 Lua 脚本
+- `dashboard` 承载可选 Web 控制台，不会被 `starter` 传递引入
 - `example` 提供可运行的 Spring Boot 示例应用，用于演示配置、注解、算法与存储组合
 - `test` 承担独立兼容性验证，覆盖 core-only、Spring Boot 2 / 3、Local / Redis 与可选 stress profile
 
@@ -294,6 +296,10 @@ public class GlobalExceptionHandler {
 | `clazs.ratelimiter.cache-maximum-size`                | 最大缓存数量      | `10000`              | -                    | 防止内存溢出               |
 | `clazs.ratelimiter.management.enabled`                | 是否启用运行时管理接口 | `false`              | `true`, `false`      | 生产环境建议配合鉴权或内网暴露 |
 | `clazs.ratelimiter.management.base-path`              | 管理接口基础路径   | `/qratelimiter`      | -                    | 可按应用管理路径规范调整       |
+| `clazs.ratelimiter.dashboard.enabled`                 | 是否启用可视化控制台 | `false`              | `true`, `false`      | 仅在需要页面排查时引入 dashboard 模块并开启 |
+| `clazs.ratelimiter.dashboard.base-path`               | 控制台页面基础路径 | `/qratelimiter/dashboard` | -                | 可按应用管理路径规范调整       |
+| `clazs.ratelimiter.dashboard.api-base-path`           | 控制台访问管理 API 的基础路径 | `/qratelimiter` | -                    | 通常与 `management.base-path` 保持一致 |
+| `clazs.ratelimiter.dashboard.title`                   | 控制台页面标题 | `QRateLimiter Dashboard` | -                    | 可按应用名称调整             |
 
 #### Redis 存储配置示例
 
@@ -354,6 +360,38 @@ clazs:
 ```
 
 > 管理端点默认关闭。生产环境启用时，建议通过网关、内网、Spring Security 或其他统一鉴权方式限制访问范围。
+
+#### 可选 Dashboard
+
+从 `1.7.0` 开始，QRateLimiter 提供独立的 `qratelimiter-dashboard` 可选模块。普通业务只引入 `qratelimiter-spring-boot-starter` 时，不会传递引入 React、Vite、Ant Design、Tailwind CSS 或 dashboard 静态资源。
+
+Dashboard 依赖 Spring Boot Web 环境托管静态页面与管理接口，适合依附宿主应用端口访问，不适用于仅引入 `qratelimiter-core` 的纯 Java 场景。
+
+需要可视化控制台时，再额外引入：
+
+```xml
+<dependency>
+    <groupId>cn.clazs</groupId>
+    <artifactId>qratelimiter-dashboard</artifactId>
+    <version>1.7.0</version>
+</dependency>
+```
+
+并开启运行时管理接口与 dashboard：
+
+```yaml
+clazs:
+  ratelimiter:
+    management:
+      enabled: true
+      base-path: /qratelimiter
+    dashboard:
+      enabled: true
+      base-path: /qratelimiter/dashboard
+      api-base-path: /qratelimiter
+```
+
+默认访问路径为 `/qratelimiter/dashboard`。Dashboard 当前用于查看运行统计、查看/刷新默认配置、清理全部缓存或指定 key 缓存。
 
 ### Micrometer 指标
 
@@ -927,7 +965,7 @@ spring:
 - [ ] **配置中心集成**
     - 集成 Spring Cloud Config / Nacos
     - 在配置变更事件中复用现有刷新策略
-- [ ] **可视化面板**
+- [x] **可视化面板**
     - 限流效果可视化面板
 
 ---
