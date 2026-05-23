@@ -4,8 +4,6 @@ import cn.clazs.qratelimiter.dashboard.web.RateLimiterDashboardController;
 import cn.clazs.qratelimiter.dashboard.properties.RateLimiterDashboardProperties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.Resource;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -49,16 +47,18 @@ class RateLimiterDashboardAutoConfigurationTest {
     }
 
     @Test
-    @DisplayName("dashboard controller serves packaged index resource")
-    void dashboardControllerServesPackagedIndexResource() throws IOException {
+    @DisplayName("dashboard controller serves index with base-path asset URLs")
+    void dashboardControllerServesIndexWithBasePathAssetUrls() throws IOException {
         RateLimiterDashboardController controller =
                 new RateLimiterDashboardController(new RateLimiterDashboardProperties());
 
-        Resource index = controller.index().getBody();
+        String index = controller.index().getBody();
 
         assertNotNull(index);
-        assertTrue(index.exists());
-        assertTrue(index.getFilename().endsWith("index.html"));
+        assertTrue(index.contains("/qratelimiter/dashboard/runtime-config.js"));
+        assertTrue(index.contains("/qratelimiter/dashboard/assets/"));
+        assertFalse(index.contains("./runtime-config.js"));
+        assertFalse(index.contains("./assets/"));
     }
 
     @Test

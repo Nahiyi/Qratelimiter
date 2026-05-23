@@ -365,6 +365,8 @@ clazs:
 
 从 `1.7.0` 开始，QRateLimiter 提供独立的 `qratelimiter-dashboard` 可选模块。普通业务只引入 `qratelimiter-spring-boot-starter` 时，不会传递引入 React、Vite、Ant Design、Tailwind CSS 或 dashboard 静态资源。
 
+Dashboard 依赖 Spring Boot Web 环境托管静态页面与管理接口，适合依附宿主应用端口访问，不适用于仅引入 `qratelimiter-core` 的纯 Java 场景。
+
 需要可视化控制台时，再额外引入：
 
 ```xml
@@ -963,7 +965,7 @@ spring:
 - [ ] **配置中心集成**
     - 集成 Spring Cloud Config / Nacos
     - 在配置变更事件中复用现有刷新策略
-- [ ] **可视化面板**
+- [x] **可视化面板**
     - 限流效果可视化面板
 
 ---

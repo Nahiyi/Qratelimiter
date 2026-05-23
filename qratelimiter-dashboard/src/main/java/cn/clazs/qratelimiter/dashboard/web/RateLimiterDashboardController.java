@@ -2,14 +2,16 @@ package cn.clazs.qratelimiter.dashboard.web;
 
 import cn.clazs.qratelimiter.dashboard.properties.RateLimiterDashboardProperties;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StreamUtils;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -34,11 +36,11 @@ public class RateLimiterDashboardController {
             "${clazs.ratelimiter.dashboard.base-path:/qratelimiter/dashboard}/",
             "${clazs.ratelimiter.dashboard.base-path:/qratelimiter/dashboard}/index.html"
     })
-    public ResponseEntity<Resource> index() {
+    public ResponseEntity<String> index() throws IOException {
         return ResponseEntity.ok()
                 .contentType(MediaType.TEXT_HTML)
                 .cacheControl(CacheControl.noCache())
-                .body(new ClassPathResource(INDEX_RESOURCE));
+                .body(indexHtml());
     }
 
     @GetMapping(
@@ -61,6 +63,14 @@ public class RateLimiterDashboardController {
 
     public RuntimeConfig runtimeConfig() {
         return new RuntimeConfig(properties.getBasePath(), properties.getApiBasePath(), properties.getTitle());
+    }
+
+    private String indexHtml() throws IOException {
+        ClassPathResource resource = new ClassPathResource(INDEX_RESOURCE);
+        String html = StreamUtils.copyToString(resource.getInputStream(), StandardCharsets.UTF_8);
+        String basePath = properties.getBasePath();
+        return html.replace("./runtime-config.js", basePath + "/runtime-config.js")
+                .replace("./assets/", basePath + "/assets/");
     }
 
     private String escape(String value) {
