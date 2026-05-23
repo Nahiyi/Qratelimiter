@@ -12,6 +12,7 @@ import java.util.UUID;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -121,6 +122,27 @@ class QRateLimiterExampleApplicationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.scenario").value("redis-profile"))
                 .andExpect(jsonPath("$.storage").value("LOCAL"));
+    }
+
+    @Test
+    void dashboardIsServedByExampleAndReadsRealManagementStats() throws Exception {
+        String userId = uniqueKey("dashboard");
+
+        mockMvc.perform(get("/qratelimiter/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("QRateLimiter Dashboard")));
+
+        mockMvc.perform(get("/qratelimiter/dashboard/runtime-config.js"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("apiBasePath:\"/qratelimiter\"")));
+
+        mockMvc.perform(get("/examples/basic/users/{userId}", userId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/qratelimiter/stats"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentCacheSize").value(org.hamcrest.Matchers.greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.limiters[?(@.key =~ /.*" + userId + ".*/)]").exists());
     }
 
     @Test

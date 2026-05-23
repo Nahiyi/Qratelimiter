@@ -16,8 +16,12 @@ clazs:
     cache-expire-after-access-minutes: 1440
     cache-maximum-size: 10000
     management:
-      enabled: false
+      enabled: true
       base-path: /qratelimiter
+    dashboard:
+      enabled: true
+      base-path: /qratelimiter/dashboard
+      api-base-path: /qratelimiter
     redis:
       key-prefix: "qratelimiter:example:"
 
