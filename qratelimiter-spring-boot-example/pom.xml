@@ -6,7 +6,7 @@
     <parent>
         <groupId>cn.clazs</groupId>
         <artifactId>qratelimiter-parent</artifactId>
-        <version>1.6.0</version>
+        <version>1.7.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -20,6 +20,11 @@
         <dependency>
             <groupId>cn.clazs</groupId>
             <artifactId>qratelimiter-spring-boot-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>cn.clazs</groupId>
+            <artifactId>qratelimiter-dashboard</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
